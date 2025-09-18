@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from typing import Tuple, Literal
 from .utils import _auto_bins
 
 
@@ -17,41 +18,59 @@ class Histogram1D:
         self.normalize = bool(normalize)
         self.cumulative = bool(cumulative)
 
-    @property
-    def centers(self) -> np.ndarray:
-        """Bin centers."""
-        return 0.5 * (self.edges[:-1] + self.edges[1:])
+    def get_data(self, *, x: Literal["edges", "centers"] = "edges") -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Return x-axis coordinates and histogram values.
+
+        Parameters
+        ----------
+        x : {"edges", "centers"}, default="edges"
+            - "edges": return (edges, values). If cumulative, auto-pad to 0 for
+              visualization consistency (prepend 0 to edges and duplicate first value).
+            - "centers": return (centers, values). No padding applied.
+
+        Returns
+        -------
+        xcoords : np.ndarray
+            Bin edges (len = N+1) or centers (len = N), depending on `x`.
+        values : np.ndarray
+            Histogram values; length N (centers) or N(+1 if padded for cumulative edges).
+        """
+        # x == "edges"
+        edges = self.edges.copy()
+        values = self.values.copy()
+        
+        if x == "centers":
+            return 0.5 * (edges[:-1] + edges[1:]), values
+
+        if self.cumulative and edges[0] > 0:
+            # Auto pad to zero for cumulative visualization
+            edges = np.insert(edges, 0, 0.0)
+            values = np.insert(values, 0, values[0])
+
+        return edges, values
 
     def plot(self, *, ax: plt.Axes = None, **kwargs):
         """
         Plot the histogram (cumulative curve or differential bar chart).
         """
-        edges = self.edges
-        values = self.values
+        # For plotting we always use edges (and let get_data handle padding)
+        edges, values = self.get_data(x="edges")
 
         if ax is None:
             _, ax = plt.subplots()
 
         if self.cumulative:
-            # --- auto pad to zero ---
-            if edges[0] > 0:
-                edges = np.insert(edges, 0, 0.0)
-                values = np.insert(values, 0, values[0])
-
-            # For cumulative: plot step using edges directly
+            # Step plot using edges directly
             ax.step(edges[:-1], values, where="post", **kwargs)
-
             # Force axes start at 0
             ax.set_xlim(left=0)
             ax.set_ylim(bottom=0)
-
         else:
-            # Differential → bar chart
+            # Differential → bar chart at bin centers
             centers = 0.5 * (edges[:-1] + edges[1:])
             widths = np.diff(edges)
             ax.bar(centers, values, width=widths, align="center", **kwargs)
-
-            # Force y axis start at 0
             ax.set_ylim(bottom=0)
 
         # --- Labels ---
@@ -66,6 +85,7 @@ class Histogram1D:
             ax.set_ylabel("Volume [cm³]")
 
         return ax
+
 
 class Histogram2D:
     """
@@ -97,7 +117,7 @@ class Histogram2D:
         ax.set_xlabel("Dose [Gy]")
         ax.set_ylabel("LET [keV/µm]")
 
-        # --- auto pad to zero for visualization if cumulative ---
+        # Auto pad to zero for visualization if cumulative
         if self.cumulative:
             ax.set_xlim(left=0)
             ax.set_ylim(bottom=0)
@@ -105,6 +125,93 @@ class Histogram2D:
         if colorbar:
             plt.colorbar(mesh, ax=ax,
                          label="Volume [%]" if self.normalize else "Volume [cm³]")
+        return ax
+
+    def get_marginals(self, *, kind: Literal["dose", "let"] = "dose") -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Return the marginal histogram as (edges, values). Only for cumulative 2D.
+
+        Parameters
+        ----------
+        kind : {"dose", "let"}, default="dose"
+            - "dose": DVH marginal → take first column (LET ≥ 0).
+            - "let" : LVH marginal → take first row (Dose ≥ 0).
+
+        Returns
+        -------
+        edges : np.ndarray
+            Bin edges of the selected axis.
+        values : np.ndarray
+            Marginal values aligned to edges (auto-padded to 0).
+
+        Raises
+        ------
+        NotImplementedError
+            If called on a differential 2D histogram (cumulative == False).
+        """
+        if not self.cumulative:
+            raise NotImplementedError(
+                "Marginal extraction is only implemented for cumulative 2D histograms. "
+            )
+
+        if kind == "dose":
+            edges = self.dose_edges.copy()
+            values = self.values[:, 0].copy()  # LET ≥ 0
+        elif kind == "let":
+            edges = self.let_edges.copy()
+            values = self.values[0, :].copy()  # Dose ≥ 0
+        else:
+            raise ValueError("Argument 'kind' must be either 'dose' or 'let'.")
+
+        # Auto pad to zero for cumulative visualization
+        if edges[0] > 0:
+            edges = np.insert(edges, 0, 0.0)
+            values = np.insert(values, 0, values[0])
+
+        return edges, values
+
+    def plot_marginals(self, *, kind: Literal["dose", "let"] = "dose"):
+        """
+        Plot DVH or LVH derived from the cumulative 2D histogram.
+
+        Parameters
+        ----------
+        kind : {"dose", "let"}, default="dose"
+            Which marginal to plot:
+            - "dose": DVH (LET ≥ 0).
+            - "let" : LVH (Dose ≥ 0).
+
+        Returns
+        -------
+        ax : matplotlib.axes.Axes
+            Matplotlib axis with the marginal plot.
+
+        Notes
+        -----
+        - Works only if the 2D histogram is cumulative, since the
+          definition is V(D ≥ d, LET ≥ l).
+        - Plotting follows the same rules as Histogram1D cumulative plots
+          (auto pad to zero, step plot, axes forced to start at 0).
+        """
+        edges, values = self.get_marginals(kind=kind)
+
+        fig, ax = plt.subplots(figsize=(6, 5))
+
+        if kind == "dose":
+            ax.step(edges[:-1], values, where="post", color="C0", label="DVH")
+            ax.set_xlabel("Dose [Gy]")
+            ax.set_title("DVH from 2D cumulative")
+        else:  # "let"
+            ax.step(edges[:-1], values, where="post", color="C1", label="LVH")
+            ax.set_xlabel("LET [keV/µm]")
+            ax.set_title("LVH from 2D cumulative")
+
+        ax.set_ylabel("Volume [%]" if self.normalize else "Volume [cm³]")
+        ax.set_xlim(left=0)
+        ax.set_ylim(bottom=0)
+        ax.grid(True)
+        ax.legend()
+        plt.tight_layout()
         return ax
 
 
@@ -161,7 +268,7 @@ class DLVH:
                           bin_width: float = None,
                           normalize: bool = True,
                           cumulative: bool = True) -> Histogram1D:
-        # binning
+        # Binning
         if bin_width is None:
             bin_edges, _ = _auto_bins(arr1=data)
         else:
@@ -173,6 +280,7 @@ class DLVH:
         counts, _ = np.histogram(data, bins=bin_edges)
 
         if cumulative:
+            # right-cumulative counts: V(X ≥ x)
             counts = np.cumsum(counts[::-1])[::-1]
 
         # counts → volume [cm³]
@@ -180,8 +288,10 @@ class DLVH:
 
         if normalize:
             if cumulative:
+                # Normalize to ROI volume → [%]
                 hist = (hist / self.volume_cc) * 100.0
             else:
+                # Differential: relative so that sum = 1
                 total = hist.sum()
                 hist = hist / total if total > 0 else hist
 
@@ -210,7 +320,6 @@ class DLVH:
         """
         mask = self.let >= let_threshold
         data = self.dose[mask]
-
         return self._volume_histogram(data=data, quantity="dose",
                                       bin_width=bin_width,
                                       normalize=normalize,
@@ -236,19 +345,18 @@ class DLVH:
         """
         mask = self.dose >= dose_threshold
         data = self.let[mask]
-
         return self._volume_histogram(data=data, quantity="let",
                                       bin_width=bin_width,
                                       normalize=normalize,
                                       cumulative=cumulative)
-    
+
     def dose_let_volume_histogram(self, *,
                                   bin_width_dose: float = None,
                                   bin_width_let: float = None,
                                   normalize: bool = True,
                                   cumulative: bool = True) -> Histogram2D:
         """
-        Compute a 2D Dose-LET Volume Histogram (DLVH).
+        Compute and return a Dose–LET Volume Histogram (2D).
 
         Parameters
         ----------
@@ -261,13 +369,9 @@ class DLVH:
             - If cumulative=False: normalize relative so that sum = 1.
         cumulative : bool, default=True
             If True, compute cumulative DLVH:
-                V(d,l) = volume of voxels with Dose ≥ d and LET ≥ l.
-
-        Returns
-        -------
-        Histogram2D
+            V(d,l) = volume of voxels with Dose ≥ d and LET ≥ l.
         """
-        # --- binning ---
+        # --- dose binning ---
         if bin_width_dose is None:
             dose_edges, _ = _auto_bins(arr1=self.dose)
         else:
@@ -276,6 +380,7 @@ class DLVH:
             nd = max(nd, 1)
             dose_edges = np.linspace(0.0, nd * bin_width_dose, nd + 1)
 
+        # --- let binning ---
         if bin_width_let is None:
             let_edges, _ = _auto_bins(arr1=self.let)
         else:
@@ -288,10 +393,10 @@ class DLVH:
         counts, dose_edges, let_edges = np.histogram2d(
             self.dose, self.let, bins=(dose_edges, let_edges)
         )
-
         voxel_vol = self.volume_cc / self.n_voxels
 
         if cumulative:
+            # Build V(D ≥ d, LET ≥ l) on the same grid
             values = np.zeros_like(counts, dtype=float)
             for i in range(counts.shape[0]):
                 for j in range(counts.shape[1]):
@@ -314,6 +419,3 @@ class DLVH:
                            let_edges=let_edges,
                            normalize=normalize,
                            cumulative=cumulative)
-
-
-

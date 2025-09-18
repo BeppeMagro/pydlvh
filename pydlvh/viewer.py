@@ -166,9 +166,6 @@ class DLVHViewer:
     # =========================================================
     # 2D DLVH
     # =========================================================
-    # =========================================================
-    # 2D DLVH
-    # =========================================================
     def plot2D(self, *,
                bin_width_dose: float = 1.0,
                bin_width_let: float = 0.1,
@@ -189,7 +186,6 @@ class DLVHViewer:
 
         fig, ax = plt.subplots(figsize=(7, 6), constrained_layout=False)
 
-        # Lascia spazio sotto solo se serve la slider
         if interactive:
             fig.subplots_adjust(bottom=0.15)
         else:
@@ -210,7 +206,6 @@ class DLVHViewer:
         cbar = plt.colorbar(mesh, ax=ax)
         cbar.set_label("Volume [%]" if normalize else "Volume [cm³]")
 
-        # --- isovolumi fissi ---
         if isovolumes:
             levels = (isovolumes if normalize
                       else [p/100.0 * self.dlvh.volume_cc for p in isovolumes])
@@ -222,7 +217,6 @@ class DLVHViewer:
                             linewidths=1.2)
             ax.clabel(CS, inline=True, fontsize=8, fmt="%g")
 
-        # --- interattivo: slider per un'isolinea dinamica ---
         if interactive:
             from matplotlib.widgets import Slider
 
@@ -240,7 +234,7 @@ class DLVHViewer:
                                     "Isovol [%]",
                                     valmin=0,
                                     valmax=100,
-                                    valinit=0,  # 0 => isolinea non mostrata
+                                    valinit=0,  
                                     valstep=1)
             self._slider2d.on_changed(self._update2D)
 
