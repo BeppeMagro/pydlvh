@@ -270,7 +270,7 @@ class DLVH:
                           cumulative: bool = True) -> Histogram1D:
         # Binning
         if bin_width is None:
-            bin_edges, _ = _auto_bins(arr1=data)
+            bin_edges, _ = _auto_bins(arr=data)
         else:
             xmax = float(np.max(data))
             n_bins = int(np.ceil(xmax / bin_width)) if bin_width > 0 else 1
@@ -373,7 +373,7 @@ class DLVH:
         """
         # --- dose binning ---
         if bin_width_dose is None:
-            dose_edges, _ = _auto_bins(arr1=self.dose)
+            dose_edges, _ = _auto_bins(arr=self.dose)
         else:
             dmax = float(np.max(self.dose))
             nd = int(np.ceil(dmax / bin_width_dose))
@@ -382,7 +382,7 @@ class DLVH:
 
         # --- let binning ---
         if bin_width_let is None:
-            let_edges, _ = _auto_bins(arr1=self.let)
+            let_edges, _ = _auto_bins(arr=self.let)
         else:
             lmax = float(np.max(self.let))
             nl = int(np.ceil(lmax / bin_width_let))

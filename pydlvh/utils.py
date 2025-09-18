@@ -62,27 +62,20 @@ def _freedman_diaconis_bins(*, data: np.ndarray, max_bins: int = 200) -> np.ndar
     return np.linspace(xmin, xmax, nbins + 1)
 
 
-def _auto_bins(*, arr1: np.ndarray, arr2: Optional[np.ndarray] = None,
-               max_bins: int = 200) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+def _auto_bins(*, arr: np.ndarray, max_bins: int = 200) -> np.ndarray:
     """
-    Suggest optimal bin edges for 1D or 2D histogram.
+    Suggest optimal bin edges for a 1D histogram.
 
     Parameters
     ----------
-    arr1 : np.ndarray
-        First variable.
-    arr2 : np.ndarray, optional
-        Second variable. If provided, returns both bins.
+    arr : np.ndarray
+        Input array to compute bin edges for.
     max_bins : int, default=200
-        Maximum number of bins per dimension.
+        Maximum number of bins.
 
     Returns
     -------
-    bins1 : np.ndarray
-    bins2 : np.ndarray or None
+    bins : np.ndarray
+        Bin edges for arr.
     """
-    bins1 = _freedman_diaconis_bins(data=arr1, max_bins=max_bins)
-    if arr2 is not None:
-        bins2 = _freedman_diaconis_bins(data=arr2, max_bins=max_bins)
-        return bins1, bins2
-    return bins1, None
+    return _freedman_diaconis_bins(data=arr, max_bins=max_bins)
