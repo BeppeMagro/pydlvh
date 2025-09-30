@@ -40,9 +40,10 @@ def main():
 
     # --- plot ---
     fig, ax = plt.subplots(figsize=(7, 6))
-    h2d.plot(ax=ax, cmap="plasma")
+    h2d.plot(ax=ax, cmap="plasma", isovolumes=[5, 10, 20], interactive=True)
+    
 
-    ax.set_title("Cumulative Dose–LET Volume Histogram (DLVH)")
+    # ax.set_title("Cumulative Dose–LET Volume Histogram (DLVH)")
     plt.tight_layout()
     plt.show()
 
