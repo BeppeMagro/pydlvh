@@ -5,9 +5,9 @@ Internal helper functions for pyDLVH.
 
 These are not part of the public API and may change without notice.
 """
+from __future__ import annotations
 
 import numpy as np
-from typing import Optional, Tuple
 
 
 def _freedman_diaconis_bins(*, data: np.ndarray, max_bins: int = 200) -> np.ndarray:
@@ -79,3 +79,13 @@ def _auto_bins(*, arr: np.ndarray, max_bins: int = 200) -> np.ndarray:
         Bin edges for arr.
     """
     return _freedman_diaconis_bins(data=arr, max_bins=max_bins)
+
+
+def _suffix_cumsum2d(counts: np.ndarray) -> np.ndarray:
+    """Fast suffix cumulative sum for 2D arrays.
+    Given differential counts C[i,j] on an (Nd×Nl) grid, returns S where
+    S[i,j] = sum_{p>=i, q>=j} C[p,q].
+    """
+    # reverse both axes → prefix cumsum → reverse back
+    s = counts[::-1, ::-1].cumsum(axis=0).cumsum(axis=1)[::-1, ::-1]
+    return s
