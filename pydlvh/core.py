@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.widgets import Slider
 from typing import Tuple, List, Literal, Optional
 from .utils import _auto_bins, _suffix_cumsum2d
 
@@ -142,49 +143,7 @@ class Histogram2D:
         self.err = None if err is None else np.asarray(err, dtype=float)
         self.p_lo = None if p_lo is None else np.asarray(p_lo, dtype=float)
         self.p_hi = None if p_hi is None else np.asarray(p_hi, dtype=float)
-
-    # def plot(self, *, ax: Optional[plt.Axes] = None,
-    #          cmap: str = "viridis", colorbar: bool = True,
-    #          mode: Literal["values", "err", "p_lo", "p_hi"] = "values",
-    #          **kwargs):
-    #     """
-    #     Plot the 2D histogram or auxiliary maps.
-
-    #     Parameters
-    #     ----------
-    #     mode : {"values", "err", "p_lo", "p_hi"}, default="values"
-    #         Select which map to plot: central values, std, or percentile bands.
-    #     """
-    #     if ax is None:
-    #         _, ax = plt.subplots()
-
-    #     if mode == "values":
-    #         data = self.values.T
-    #     elif mode == "err" and self.err is not None:
-    #         data = self.err.T
-    #     elif mode == "p_lo" and self.p_lo is not None:
-    #         data = self.p_lo.T
-    #     elif mode == "p_hi" and self.p_hi is not None:
-    #         data = self.p_hi.T
-    #     else:
-    #         raise ValueError(f"No data available for mode='{mode}'.")
-
-    #     mesh = ax.pcolormesh(self.dose_edges,
-    #                          self.let_edges,
-    #                          data,
-    #                          cmap=cmap, **kwargs)
-    #     ax.set_xlabel(self.dose_label)
-    #     ax.set_ylabel(self.let_label)
-
-    #     if self.cumulative:
-    #         ax.set_xlim(left=0)
-    #         ax.set_ylim(bottom=0)
-
-    #     if colorbar:
-    #         plt.colorbar(mesh, ax=ax,
-    #                      label="Volume [%]" if self.normalize else "Volume [cm³]")
-    #     return ax
-    
+   
     def plot(self, *, ax: Optional[plt.Axes] = None,
              cmap: str = "viridis", colorbar: bool = True,
              mode: Literal["values", "err", "p_lo", "p_hi"] = "values",
@@ -194,7 +153,7 @@ class Histogram2D:
         """
         Plot the 2D histogram or auxiliary maps, with optional (interactive) isovolumes.
         Matching the viewer.plot2D layout and slider behavior.
-    
+
         Parameters
         ----------
         mode : {"values", "err", "p_lo", "p_hi"}, default="values"
@@ -206,9 +165,26 @@ class Histogram2D:
         interactive : bool, default=False
             If True, show an interactive slider to add a single isovolume contour.
         """
-        import numpy as np
-        from matplotlib.widgets import Slider
-    
+
+        # --- Ensure visual padding to 0 for cumulative maps ---
+        if self.cumulative:
+            if self.dose_edges[0] > 0:
+                self.dose_edges = np.insert(self.dose_edges, 0, 0.0)
+                self.values = np.insert(self.values, 0, self.values[0, :], axis=0)
+                if self.err is not None:
+                    self.err = np.insert(self.err, 0, self.err[0, :], axis=0)
+                if self.p_lo is not None and self.p_hi is not None:
+                    self.p_lo = np.insert(self.p_lo, 0, self.p_lo[0, :], axis=0)
+                    self.p_hi = np.insert(self.p_hi, 0, self.p_hi[0, :], axis=0)
+            if self.let_edges[0] > 0:
+                self.let_edges = np.insert(self.let_edges, 0, 0.0)
+                self.values = np.insert(self.values, 0, self.values[:, 0], axis=1)
+                if self.err is not None:
+                    self.err = np.insert(self.err, 0, self.err[:, 0], axis=1)
+                if self.p_lo is not None and self.p_hi is not None:
+                    self.p_lo = np.insert(self.p_lo, 0, self.p_lo[:, 0], axis=1)
+                    self.p_hi = np.insert(self.p_hi, 0, self.p_hi[:, 0], axis=1)
+
         # --- Select data to plot ---
         if mode == "values":
             data = self.values.T
@@ -220,14 +196,14 @@ class Histogram2D:
             data = self.p_hi.T
         else:
             raise ValueError(f"No data available for mode='{mode}'.")
-    
+
         # --- Setup figure/axes with viewer-style spacing ---
         if ax is None:
             fig, ax = plt.subplots(figsize=(7, 7), constrained_layout=False)
         else:
             fig = ax.figure
         fig.subplots_adjust(bottom=0.6 if interactive else 0.12)
-        
+
         # --- Heatmap ---
         mesh = ax.pcolormesh(self.dose_edges,
                              self.let_edges,
@@ -236,23 +212,23 @@ class Histogram2D:
         ax.set_xlabel(self.dose_label)
         ax.set_ylabel(self.let_label)
         ax.set_title("Cumulative Dose–LET Volume Histogram (DLVH)")
-    
+
         if self.cumulative:
             ax.set_xlim(left=0)
             ax.set_ylim(bottom=0)
-    
+
         if colorbar:
             plt.colorbar(mesh, ax=ax,
                          label="Volume [%]" if self.normalize else "Volume [cm³]")
-    
+
         # --- Helper: estimate total volume (needed if normalize=False) ---
         def _total_volume(arr: np.ndarray) -> float:
             if self.cumulative:
                 return float(arr[0, 0]) if arr.size > 0 else 0.0
             return float(np.nansum(arr))
-    
+
         total_abs = _total_volume(self.values.T if mode == "values" else data)
-    
+
         # --- Draw static isovolumes ---
         if isovolumes:
             if self.normalize:
@@ -267,7 +243,7 @@ class Histogram2D:
                             linewidths=1.2)
             fmt = (lambda v: f"{v:g}%") if self.normalize else (lambda v: f"{v:.2f} cm³")
             ax.clabel(CS, inline=True, fontsize=8, fmt=fmt)
-    
+
         # --- Interactive slider ---
         if interactive:
             # keep references on self to avoid GC
@@ -277,7 +253,7 @@ class Histogram2D:
             self._total_abs = total_abs
             self._interactive_contour = None
             self._interactive_labels = []
-    
+
             ax_slider = plt.axes([0.15, 0.00001, 0.7, 0.04])
             self._slider = Slider(ax_slider,
                                   "Isovol [%]",
@@ -285,7 +261,7 @@ class Histogram2D:
                                   valmax=100,
                                   valinit=0,
                                   valstep=1)
-    
+
             def _update(val):
                 # clear previous contour
                 if self._interactive_contour is not None:
@@ -298,17 +274,17 @@ class Histogram2D:
                     except Exception:
                         pass
                 self._interactive_labels = []
-    
+
                 level_pct = float(self._slider.val)
                 if level_pct <= 0 or level_pct >= 100:
                     self._fig2d.canvas.draw_idle()
                     return
-    
+
                 if self.normalize:
                     level_abs = level_pct
                 else:
                     level_abs = level_pct / 100.0 * self._total_abs
-    
+
                 self._interactive_contour = self._ax2d.contour(
                     self.dose_edges[:-1],
                     self.let_edges[:-1],
@@ -324,9 +300,9 @@ class Histogram2D:
                     fmt=lambda _: f"{level_pct:.0f}%"
                 )
                 self._fig2d.canvas.draw_idle()
-    
+
             self._slider.on_changed(_update)
-    
+
         plt.show()
         return ax
 
