@@ -77,7 +77,7 @@ class DLVHCohort:
         return Histogram1D(values=agg, edges=bin_edges,
                            quantity=quantity, normalize=normalize,
                            cumulative=cumulative, x_label=xlab,
-                           err=err, p_lo=p_lo, p_hi=p_hi)
+                           err=err, p_lo=p_lo, p_hi=p_hi, stat=stat)
 
     # -------------------- 2D aggregation --------------------
     def aggregate_2d(
@@ -127,7 +127,7 @@ class DLVHCohort:
                            cumulative=cumulative,
                            dose_label=f"Dose [{self.dlvhs[0].dose_units}]",
                            let_label=f"LET [{self.dlvhs[0].let_units}]",
-                           err=err, p_lo=p_lo, p_hi=p_hi)
+                           err=err, p_lo=p_lo, p_hi=p_hi, stat=stat)
 
     # -------------------- Marginals from 2D aggregation --------------------
     def aggregate_marginals(

@@ -2,34 +2,76 @@ from __future__ import annotations
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
-from typing import Tuple, List, Literal, Optional
-from .utils import _auto_bins, _suffix_cumsum2d
+from typing import Tuple, List, Literal, Optional, Union
+from scipy.stats import mannwhitneyu
+
+from pydlvh.core import Histogram1D, Histogram2D
 
 
-class Histogram1D:
-    """Internal 1D histogram container with plotting capability."""
+class Analyzer:
+    """ 
+        Class to analyze control and adverse event (ae) groups and investigate possible statistically significant differences.
+        The class assumes that 
+    """
 
-    def __init__(self, *, values: np.ndarray, edges: np.ndarray,
-                 quantity: str, normalize: bool, cumulative: bool,
-                 x_label: Optional[str] = None, y_unit: Optional[str] = None,
-                 err: Optional[np.ndarray] = None,
-                 p_lo: Optional[np.ndarray] = None,
-                 p_hi: Optional[np.ndarray] = None,
-                 stat: Optional[str] = None):
-        self.values = np.asarray(values, dtype=float)
-        self.edges = np.asarray(edges, dtype=float)
-        self.quantity = str(quantity)
-        self.normalize = bool(normalize)
-        self.cumulative = bool(cumulative)
-        self.x_label = x_label
-        self.y_unit = y_unit
+    def __init__(self, *, 
+                 control_group: Union[Histogram1D, Histogram2D], 
+                 ae_group: Union[Histogram1D, Histogram2D],
+                 quantity: Optional[str] = None):
+        
 
-        # Optional cohort statistics
-        self.err = None if err is None else np.asarray(err, dtype=float)
-        self.p_lo = None if p_lo is None else np.asarray(p_lo, dtype=float)
-        self.p_hi = None if p_hi is None else np.asarray(p_hi, dtype=float)
-        self.stat = stat if stat else None
+        if type(control_group) != type(ae_group):
+            raise ValueError("Both histograms must be of the same type (1D or 2D).")
+
+        if isinstance(control_group, Histogram2D):
+            if (not np.array_equal(control_group.dose_edges, ae_group.dose_edges) or
+                not np.array_equal(control_group.let_edges, ae_group.let_edges)):
+                raise ValueError("Control and ae histograms must have matching dose and LET edges")
+
+        if isinstance(control_group, Histogram1D):
+            if not np.array_equal(control_group.edges, ae_group.edges):
+                raise ValueError("Control and ae histograms must have matching edges.")
+            
+        if isinstance(control_group, Histogram1D) and (quantity is None or quantity.lower() not in ["dose", "let"]):
+            raise AttributeError("Histogram1Ds were provided, but not the specified quantity (dose or let)")
+        
+        if control_group.stat != "median" or ae_group.stat != "median":
+            raise AttributeError("Control and ae histograms must have been computed as median quantities.")
+        
+        self.control_group = control_group
+        self.ae_group = ae_group
+        if isinstance(control_group, Histogram1D):
+            if quantity == "dose":
+                self.dose_edges = control_group.edges
+                self.let_edges = None
+            elif quantity == "let":
+                self.let_edges = control_group.edges
+                self.dose_edges = None
+        else:
+            self.dose_edges = control_group.dose_edges
+            self.let_edges = control_group.let_edges
+
+
+    def perform_voxel_wise_Mann_Whitney_test(self, *, 
+                                             significance_level: float = 0.05,
+                                             useBonferronicorrection: bool = False) -> np.ndarray:
+
+        """ Perform voxel-wise Mann-Whitney U test between control and ae groups. """
+
+        p_values = []
+
+        if isinstance(self.control_group, Histogram1D):
+
+            for control, ae in zip(self.control_group.values, self.ae_group.values):
+                _, p = mannwhitneyu(control, ae, alternative="two-sided")
+                p_values.append(p) # TODO: Sputare fuori un array con p-values (1D o 2D a seconda del tipo di histo)
+                # TODO: sputa fuori anche un array di bool per valutare dove i p-values passano o meno il livello di significanza di input
+
+            return p_values
+        
+        else:
+            return 1
+
 
     def get_data(self, *, x: Literal["edges", "centers"] = "edges") -> Tuple[np.ndarray, np.ndarray]:
         """Return x-axis coordinates and histogram values."""
@@ -132,8 +174,7 @@ class Histogram2D:
                  let_label: str = "LET [keV/µm]",
                  err: Optional[np.ndarray] = None,
                  p_lo: Optional[np.ndarray] = None,
-                 p_hi: Optional[np.ndarray] = None,
-                 stat: Optional[str] = None):
+                 p_hi: Optional[np.ndarray] = None):
         self.values = np.asarray(values, dtype=float)
         self.dose_edges = np.asarray(dose_edges, dtype=float)
         self.let_edges = np.asarray(let_edges, dtype=float)
@@ -146,7 +187,6 @@ class Histogram2D:
         self.err = None if err is None else np.asarray(err, dtype=float)
         self.p_lo = None if p_lo is None else np.asarray(p_lo, dtype=float)
         self.p_hi = None if p_hi is None else np.asarray(p_hi, dtype=float)
-        self.stat = stat if stat else None
    
     def plot(self, *, ax: Optional[plt.Axes] = None,
              cmap: str = "viridis", colorbar: bool = True,
