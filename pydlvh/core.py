@@ -59,10 +59,10 @@ class Histogram1D:
         if ax is None:
             _, ax = plt.subplots()
     
-        # --- linea principale ---
+        # Plot Histogram1D (accounting for eventual padding)
         if self.cumulative:
             ax.step(edges[:-1], values, where="post", **kwargs)
-            x_band = edges[:-1]  # garantisce stessa len di 'values' anche se c'è padding
+            x_band = edges[:-1]
             step_kw = "post"
         else:
             centers = 0.5 * (edges[:-1] + edges[1:])
@@ -71,7 +71,7 @@ class Histogram1D:
             x_band = centers
             step_kw = None
     
-        # --- bande di incertezza/percentili ---
+        # Plot uncertainty range
         if show_band:
             n = len(values)
     
@@ -81,10 +81,8 @@ class Histogram1D:
                 arr = np.asarray(arr, dtype=float)
                 if arr.shape[0] == n:
                     return arr
-                # caso tipico: cumulativo con padding ha values di len n, ma bande di len n-1
                 if self.cumulative and arr.shape[0] == n - 1:
                     return np.insert(arr, 0, arr[0])
-                # altrimenti non plottiamo la banda per evitare errori
                 return None
     
             # std band
@@ -94,7 +92,7 @@ class Histogram1D:
                     y_lo = values - err
                     y_hi = values + err
                     ax.fill_between(x_band, y_lo, y_hi,
-                                    step=step_kw, alpha=0.3, color="gray", label="±std")
+                                    step=step_kw, alpha=0.1, color="gray", label="±std")
     
             # percentile band
             if self.p_lo is not None and self.p_hi is not None:
@@ -102,18 +100,19 @@ class Histogram1D:
                 phi = _fix_len(self.p_hi)
                 if plo is not None and phi is not None:
                     ax.fill_between(x_band, plo, phi,
-                                    step=step_kw, alpha=0.2, color="orange", label="IQR")
+                                    step=step_kw, alpha=0.1, color="gray", label="IQR")
     
         # Labels
         if self.x_label:
             ax.set_xlabel(self.x_label)
         elif self.quantity == "dose":
-            ax.set_xlabel("Dose")
+            ax.set_xlabel("Dose [Gy]")
         elif self.quantity == "let":
-            ax.set_xlabel("LET")
+            ax.set_xlabel("LET [keV/µm]")
     
         if self.normalize:
-            ax.set_ylabel(f"{'Cumulative' if self.cumulative else 'Differential'} volume [%]")
+            # ax.set_ylabel(f"{'Cumulative' if self.cumulative else 'Differential'} Volume [%]")
+            ax.set_ylabel("Volume [%]")
         else:
             ax.set_ylabel("Volume [cm³]")
     
@@ -147,12 +146,13 @@ class Histogram2D:
         self.p_lo = None if p_lo is None else np.asarray(p_lo, dtype=float)
         self.p_hi = None if p_hi is None else np.asarray(p_hi, dtype=float)
         self.stat = stat if stat else None
+        self.aggregated = False if err is None or p_lo is None else True
    
     def plot(self, *, ax: Optional[plt.Axes] = None,
              cmap: str = "viridis", colorbar: bool = True,
              mode: Literal["values", "err", "p_lo", "p_hi"] = "values",
              isovolumes: Optional[List[float]] = None,
-             interactive: bool = False,
+             interactive: bool = False, title: bool = False,
              **kwargs):
         """
         Plot the 2D histogram or auxiliary maps, with optional (interactive) isovolumes.
@@ -215,7 +215,7 @@ class Histogram2D:
                              cmap=cmap, **kwargs)
         ax.set_xlabel(self.dose_label)
         ax.set_ylabel(self.let_label)
-        ax.set_title("Cumulative Dose–LET Volume Histogram (DLVH)")
+        if title: ax.set_title("Cumulative Dose–LET Volume Histogram (DLVH)")
 
         if self.cumulative:
             ax.set_xlim(left=0)
@@ -307,7 +307,7 @@ class Histogram2D:
 
             self._slider.on_changed(_update)
 
-        plt.show()
+        if not ax: plt.show()
         return ax
 
 
