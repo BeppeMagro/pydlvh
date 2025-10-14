@@ -149,7 +149,7 @@ def suggest_common_edges_2d(
     max_bins_let: int = 200,
     dose_bin_width: Optional[float] = None,
     let_bin_width: Optional[float] = None,
-) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> np.ndarray:
     """Suggest common (dose_edges, let_edges) for a cohort."""
     d_edges = suggest_common_edges(
         arrays=dose_arrays, method=dose_method, max_bins=max_bins_dose, bin_width=dose_bin_width
@@ -157,4 +157,5 @@ def suggest_common_edges_2d(
     l_edges = suggest_common_edges(
         arrays=let_arrays, method=let_method, max_bins=max_bins_let, bin_width=let_bin_width
     )
-    return d_edges, l_edges
+    bin_edges = np.stack(d_edges, l_edges, axis=0)
+    return bin_edges

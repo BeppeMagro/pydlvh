@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from pydlvh import DLVH, DLVHCohort
+from pydlvh import DLVH, DLVHCohort, analyzer
 
 def create_synthetic_patient(n_voxels=4000,
                              dose_max=60.0,
@@ -29,52 +29,57 @@ def main():
     np.random.seed(7)
 
     # 1) Create synthetic patients
-    dose_shapes = [(27, 6.0), (30, 7.0), (33, 8.0), (29, 6.5), (32, 7.5)]
-    dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes]
-    cohort = DLVHCohort(dlvhs)
+    dose_shapes = [(50, 0.8), (48, 1.7), (48, 2.5), (52, 2.2), (54, 1.5)]
+    control_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Control group
+    control_cohort = DLVHCohort(control_dlvhs)
+    dose_shapes = [(27, 0.5), (26, 2.0), (30, 1.3), (29, 2.3), (28, 1.4)]
+    ae_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] #Adverse event (AE) group
+    ae_cohort = DLVHCohort(ae_dlvhs)
 
-    # 2) Median DVH (± iqr)
-    dvh_med = cohort.aggregate_1d(
+    # 2) Median DVHs (± iqr)
+    # Ensure that both control and ae aggregates are computed
+    # with the same  binning.
+    dose_edges = np.arange(0, 65, 0.5)
+    let_edges = np.arange(0, 8, 0.05)
+    median_control_dvh = control_cohort.aggregate_1d(
         quantity="dose",
         stat="median",
         normalize=True,
-        cumulative=True
+        cumulative=True,
+        bin_edges=dose_edges
     )
-    ax = dvh_med.plot(color="C0", label="Median DVH", show_band=True)
-    ax.legend(loc="best")
-    ax.set_title("Median DVH")
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.show()
-
-    # 3) Mean DVH (± std dev)
-    dvh_mean = cohort.aggregate_1d(
+    median_ae_dvh = ae_cohort.aggregate_1d(
         quantity="dose",
-        stat="mean",
-        normalize=True,
-        cumulative=True
-    )
-    ax = dvh_mean.plot(color="C1", label="Mean DVH", show_band=True)
-    ax.legend(loc="best")
-    ax.set_title("Mean DVH")
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.show()
-
-    # 4) Median LVH (± iqr)
-    lvh_med = cohort.aggregate_1d(
-        quantity="let",
         stat="median",
-        normalize=False,
-        cumulative=True
+        normalize=True,
+        cumulative=True,
+        bin_edges=dose_edges
     )
-    ax = lvh_med.plot(color="C2", label="Median LVH", show_band=True)
-    ax.legend(loc="best")
-    ax.set_title("Median LVH")
-    ax.grid(True, alpha=0.3)
+    fig, axes = plt.subplots(1, 2, figsize=(8, 4))
+    median_control_dvh.plot(ax=axes[0], color="C0", label="Control", show_band=True)
+    median_ae_dvh.plot(ax=axes[1], color="C1", label="AE", show_band=True)
+    fig.suptitle("Median DVH")
+
+    # 3) Investigate for possible statistically significant difference between median control and AE DVHs (Mann-Whitney u-test)
+    # Including Bonferroni correction
+    alpha = 0.05
+    p_values, significance = analyzer.voxel_wise_Mann_Whitney_test(median_control_dvh, median_ae_dvh, alpha=alpha)#, correction="holm")
+    print(significance)
+    # Plot significant DVH points
+    # Padding
+    edges = np.insert(dose_edges, 0, 0.0)
+    values = [np.insert(histo.values, 0, histo.values[0]) for histo in [median_control_dvh, median_ae_dvh]]
+    significance = np.insert(significance, 0, False)
+    # Plot
+    for i, ax in enumerate(axes):
+        ax.scatter(edges[:-1][significance], values[i][significance], label=f"p<{alpha:.2f}", color="red")
+        ax.grid(True, alpha=0.3)
+        ax.legend(frameon=False)
     plt.tight_layout()
     plt.show()
 
+
+"""
     # 5) Median DLVH  (+ P25/P75)
     h2d_med = cohort.aggregate_2d(
         stat="median",
@@ -108,7 +113,7 @@ def main():
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.show()
-
+"""
 
 if __name__ == "__main__":
     main()

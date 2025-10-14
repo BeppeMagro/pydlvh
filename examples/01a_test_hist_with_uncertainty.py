@@ -2,12 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pydlvh.core import Histogram1D, Histogram2D
 
-
 def demo_histogram1d():
-    edges = np.linspace(0, 10, 21)         # 20 bin
+    edges = np.linspace(0, 10, 21)
     centers = 0.5 * (edges[:-1] + edges[1:])
 
-    # --- valori sintetici tipo gaussiana ---
+    # Synthetic dose (Gaussian) distribution and related error
     values_diff = np.exp(-0.5 * ((centers - 5)/1.5)**2) * 100
     err_diff = np.random.rand(len(values_diff)) * 5
     p_lo_diff = values_diff - np.random.rand(len(values_diff)) * 10
@@ -24,12 +23,12 @@ def demo_histogram1d():
         p_hi=p_hi_diff,
     )
 
-    ax = hist_diff.plot(color="C0", label="Differential values")
+    ax = hist_diff.plot(color="C0", label="Differential DVH")
     ax.legend()
-    ax.set_title("Histogram1D differenziale con bande ±std e percentili")
+    ax.set_title("DVH")
     plt.show()
 
-    # --- valori sintetici cumulativi decrescenti ---
+    # Synthetic dose (Gaussian) distribution and related error
     values_cum = np.linspace(100, 0, len(centers))
     err_cum = np.random.rand(len(values_cum)) * 3
     p_lo_cum = values_cum - np.random.rand(len(values_cum)) * 5
@@ -46,9 +45,9 @@ def demo_histogram1d():
         p_hi=p_hi_cum,
     )
 
-    ax = hist_cum.plot(color="C1", label="Cumulative values")
+    ax = hist_cum.plot(color="C1", label="Cumulative DVH")
     ax.legend()
-    ax.set_title("Histogram1D cumulativo con bande ±std e percentili")
+    ax.set_title("DVH")
     plt.show()
 
 
@@ -74,18 +73,21 @@ def demo_histogram2d():
     )
 
     # Plot central values
-    hist2d.plot(cmap="viridis", mode="values")
-    plt.title("Histogram2D - central values")
+    fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=False)
+    hist2d.plot(ax=ax, cmap="viridis", mode="values")
+    ax.set_title("DLVH")
     plt.show()
 
     # Plot std map
-    hist2d.plot(cmap="magma", mode="err")
-    plt.title("Histogram2D - std map")
+    fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=False)
+    hist2d.plot(ax=ax, cmap="magma", mode="err")
+    ax.set_title("DLVH - standard deviation map")
     plt.show()
 
     # Plot percentile high map
-    hist2d.plot(cmap="plasma", mode="p_hi")
-    plt.title("Histogram2D - upper percentile map")
+    fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=False)
+    hist2d.plot(ax=ax, cmap="plasma", mode="p_hi")
+    ax.set_title("DLVH - upper percentile")
     plt.show()
 
 
