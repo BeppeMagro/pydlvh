@@ -157,5 +157,4 @@ def suggest_common_edges_2d(
     l_edges = suggest_common_edges(
         arrays=let_arrays, method=let_method, max_bins=max_bins_let, bin_width=let_bin_width
     )
-    bin_edges = np.stack(d_edges, l_edges, axis=0)
-    return bin_edges
+    return d_edges, l_edges

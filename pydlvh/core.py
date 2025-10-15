@@ -108,7 +108,7 @@ class Histogram1D:
         elif self.quantity == "dose":
             ax.set_xlabel("Dose [Gy]")
         elif self.quantity == "let":
-            ax.set_xlabel("LET [keV/µm]")
+            ax.set_xlabel(r"LET$_{d}$ [keV/µm]")
     
         if self.normalize:
             # ax.set_ylabel(f"{'Cumulative' if self.cumulative else 'Differential'} Volume [%]")
