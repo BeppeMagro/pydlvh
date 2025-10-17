@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
-from typing import Tuple, List, Literal, Optional
+from typing import Tuple, List, Literal, Optional, Union
 from .utils import _auto_bins, _suffix_cumsum2d
 
 
@@ -44,7 +44,7 @@ class Histogram1D:
             values = np.insert(values, 0, values[0])
 
         return edges, values
-
+    
     def plot(self, *, ax: Optional[plt.Axes] = None,
              show_band: bool = True, **kwargs):
         """
@@ -106,9 +106,9 @@ class Histogram1D:
         if self.x_label:
             ax.set_xlabel(self.x_label)
         elif self.quantity == "dose":
-            ax.set_xlabel("Dose [Gy]")
+            ax.set_xlabel("Dose [Gy(RBE)]")
         elif self.quantity == "let":
-            ax.set_xlabel("LET [keV/µm]")
+            ax.set_xlabe(r"LET$_{d}$ [keV/µm]")
     
         if self.normalize:
             # ax.set_ylabel(f"{'Cumulative' if self.cumulative else 'Differential'} Volume [%]")
@@ -152,6 +152,7 @@ class Histogram2D:
              cmap: str = "viridis", colorbar: bool = True,
              mode: Literal["values", "err", "p_lo", "p_hi"] = "values",
              isovolumes: Optional[List[float]] = None,
+             isovolumes_colors: Optional[Union[str, List[str]]] = None,
              interactive: bool = False, title: bool = False,
              **kwargs):
         """
@@ -166,6 +167,8 @@ class Histogram2D:
             Contour levels in percent [%] of total volume.
             - If self.normalize=True: values are already %.
             - If self.normalize=False: values are interpreted as % and converted to cm³.
+        isovolumes_colors : str or list of str, optional
+            Color(s) for the isovolume contours. If not a list, the color is applied to all contours.
         interactive : bool, default=False
             If True, show an interactive slider to add a single isovolume contour.
         """
@@ -212,7 +215,8 @@ class Histogram2D:
         mesh = ax.pcolormesh(self.dose_edges,
                              self.let_edges,
                              data,
-                             cmap=cmap, **kwargs)
+                             cmap=cmap,
+                             **kwargs)
         ax.set_xlabel(self.dose_label)
         ax.set_ylabel(self.let_label)
         if title: ax.set_title("Cumulative Dose–LET Volume Histogram (DLVH)")
@@ -222,8 +226,10 @@ class Histogram2D:
             ax.set_ylim(bottom=0)
 
         if colorbar:
-            plt.colorbar(mesh, ax=ax,
-                         label="Volume [%]" if self.normalize else "Volume [cm³]")
+            cbar = plt.colorbar(mesh, ax=ax,
+                         label="Volume [%]" if self.normalize else "Volume [cm³]",
+                         aspect=10)
+            cbar.ax.tick_params(size=0)
 
         # --- Helper: estimate total volume (needed if normalize=False) ---
         def _total_volume(arr: np.ndarray) -> float:
@@ -243,10 +249,10 @@ class Histogram2D:
                             self.let_edges[:-1],
                             data,
                             levels=levels_abs,
-                            colors="white",
-                            linewidths=1.2)
-            fmt = (lambda v: f"{v:g}%") if self.normalize else (lambda v: f"{v:.2f} cm³")
-            ax.clabel(CS, inline=True, fontsize=8, fmt=fmt)
+                            colors=isovolumes_colors if isovolumes_colors else "white",
+                            linewidths=2)
+            fmt = (lambda v: f"{v:g}%") if self.normalize else (lambda v: f"{v:.2f}cm³")
+            ax.clabel(CS, inline=True, fontsize=10, fmt=fmt)
 
         # --- Interactive slider ---
         if interactive:

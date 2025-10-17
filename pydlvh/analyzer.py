@@ -40,79 +40,31 @@ def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D,
                     raise ValueError("All 1D histograms must have matching edges.")
                 if reference_histogram.quantity != h.quantity:
                     raise ValueError("All 1D histograms must contain the same quantity type (dose or let).")
-            
+
 def aggregate(
-        histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D, Histogram2D]]],
+        dlvhs: Union[DLVH, List[DLVH]],
+        quantity: Optional[Literal["dvh", "lvh", "dlvh"]] = None,
         stat: Literal["mean", "median"] = "median",
         dose_edges: Optional[np.ndarray] = None,
         let_edges: Optional[np.ndarray] = None,
         normalize: bool = True,
         cumulative: bool = True,
-        dose_units: str = "Gy[RBE]",
+        dose_units: str = "Gy(RBE)",
         let_units: str = "keV/µm"
     ) -> Union[Histogram1D, Histogram2D]:
 
     """ Aggregate DVH/LVH/DLVH across a cohort. """
 
-    if not isinstance(histograms, list): print("Watch out! You have only passed one histogram to be processed.") 
-
-    validate(histograms, validate_edges=False)
-
-    # Check what type of histogram was provided
-    aggregate_histo_1D = True if type(histograms[0]) == Histogram1D else False
-    aggregate_histo_2D = True if type(histograms[0]) == Histogram2D else False
-
-    # If Histogram1D, check the type of quantity
-    quantity = histograms[0].quantity if aggregate_histo_1D else None
-
-    # Create common bin edges if not declared
-    if aggregate_histo_1D: 
-        if dose_edges is None and let_edges is None:
-            arrays = [histo.edges for histo in histograms]
-            bin_edges = suggest_common_edges(arrays=arrays)
-        else:
-            bin_edges = dose_edges if let_edges is None else let_edges
-
-    elif aggregate_histo_2D:
-        if dose_edges is None or let_edges is None:
-            if dose_edges is not None: # Only dose provided
-                print("Only dose binning has been specified for aggregated dlvh. Let binning will be atuomatically set.")
-                lets = [histo.let_edges for histo in histograms] 
-                let_edges = suggest_common_edges(arrays=lets)
-                bin_edges = np.strack(dose_edges, let_edges)
-
-            elif let_edges is not None: # Only let provided
-                print("Only let binning has been specified for aggregated dlvh. Dose binning will be atuomatically set.")
-                doses = [histo.dose_edges for histo in histograms] 
-                dose_edges = suggest_common_edges(arrays=doses)
-                bin_edges = np.strack(dose_edges, let_edges)
-
-            else: # None specified
-                doses = [histo.dose_edges for histo in histograms]
-                lets = [histo.let_edges for histo in histograms] 
-                bin_edges = suggest_common_edges_2d(dose_arrays=doses, let_arrays=lets)
-
-    # Rebin histos
-    rebinned_histos = []
-    for histo in histograms:
-        if aggregate_histo_1D:
-            if quantity == "dose":
-                h = Histogram1D(values=histo.values, edges=bin_edges,
-                                quantity=quantity, normalize=normalize,
-                                cumulative=cumulative)
-            else:
-                h = Histogram1D(values=histo.values, edges=bin_edges,
-                                quantity=quantity, normalize=normalize,
-                                cumulative=cumulative)
-            rebinned_histos.append(h.values)
-        else: 
-            h = Histogram2D(values=histo.values,
-                            dose_edges=bin_edges[0],
-                            let_edges=bin_edges[1],
-                            normalize=normalize,
-                            cumulative=cumulative)
-            rebinned_histos.append(h.values)
-    stack = np.stack(rebinned_histos, axis=0) 
+    aggregate_histo_1D = True if (quantity == "dvh" or quantity == "lvh") else False
+    aggregate_histo_2D = True if (quantity == "dlvh") else False
+    rebinned_histos, bin_edges = get_all_cohort_histograms(dlvhs=dlvhs, 
+                                                           dose_edges=dose_edges, 
+                                                           let_edges=let_edges, 
+                                                           quantity=quantity, 
+                                                           cumulative=cumulative, 
+                                                           normalize=normalize)
+    rebinned_values = [h.values for h in rebinned_histos]
+    stack = np.stack(rebinned_values, axis=0) 
 
     if stat == "mean":
         aggregate = np.mean(stack, axis=0)
@@ -127,7 +79,11 @@ def aggregate(
         raise ValueError("Unsupported stat. Choose 'mean' or 'median'.")
     
     dose_label = f"Dose [{dose_units}]"
-    let_label = f"LET [{let_units}]"
+    let_label = r"LET$_{d}$ " + f"[{let_units}]"
+
+    if not isinstance(dlvhs, list): print("\nWatch out! You have only passed one dlvh to be processed.n") 
+    print(f"You aggregated a cohort of {len(dlvhs)} {quantity}s.")
+    if not quantity: print("(Default quantity was not provided but inferred to be 'dlvh').")
     if aggregate_histo_1D:
         label = dose_label if quantity == "dose" else let_label
         return Histogram1D(values=aggregate, edges=bin_edges,
@@ -136,7 +92,7 @@ def aggregate(
                            err=error, p_lo=lower_percentile, p_hi=higher_percentile, stat=stat)
     elif aggregate_histo_2D: 
         return Histogram2D(values=aggregate,
-                           dose_edges=dose_edges, let_edges=let_edges,
+                           dose_edges=bin_edges[0], let_edges=bin_edges[1],
                            normalize=normalize, cumulative=cumulative,
                            dose_label=dose_label, let_label=let_label,
                            err=error, p_lo=lower_percentile, p_hi=higher_percentile, stat=stat)
@@ -183,6 +139,71 @@ def aggregate_marginals(
                         p_lo=aggregated_histo.p_lo[:, 0] if stat == "median" and aggregated_histo.p_lo is not None and quantity == "dose" else None,
                         p_hi=aggregated_histo.p_hi[:, 0] if stat == "median" and aggregated_histo.p_hi is not None and quantity == "dose" else None)
 
+def get_all_cohort_histograms(
+        dlvhs: Union[DLVH, List[DLVH]],
+        dose_edges: Optional[np.ndarray] = None,
+        let_edges: Optional[np.ndarray] = None,
+        quantity: Literal["dhv", "lvh", "dlvh"] = None,
+        cumulative: bool = True,
+        normalize: bool = True
+    ) -> Tuple[np.ndarray, np.ndarray]:
+
+    """ Return an array containing all the DVH/LVH/DLVHs from cohort after standardizing binning. """
+    # Check what type of histogram was provided
+    aggregate_histo_1D = True if (quantity == "dvh" or quantity == "lvh") else False
+    aggregate_histo_2D = True if (quantity == "dlvh") else False
+
+    # Create common bin edges if not declared
+    if aggregate_histo_1D: 
+        if dose_edges is None and let_edges is None:
+            if quantity=="dvh": arrays = [dlvh.dose for dlvh in dlvhs]
+            else: arrays = [dlvh.let for dlvh in dlvhs]
+            bin_edges = suggest_common_edges(arrays=arrays)
+        else:
+            bin_edges = dose_edges if let_edges is None else let_edges
+
+    elif aggregate_histo_2D:
+        if dose_edges is None or let_edges is None:
+            if dose_edges is not None: # Only dose provided
+                print("Only dose binning has been specified for aggregated dlvh. Let binning will be atuomatically set.")
+                lets = [dlvh.let for dlvh in dlvhs] 
+                let_edges = suggest_common_edges(arrays=lets)
+                bin_edges = np.stack(dose_edges, let_edges)
+
+            elif let_edges is not None: # Only let provided
+                print("Only let binning has been specified for aggregated dlvh. Dose binning will be atuomatically set.")
+                doses = [dlvh.dose for dlvh in dlvhs] 
+                dose_edges = suggest_common_edges(arrays=doses)
+                bin_edges = np.stack(dose_edges, let_edges)
+
+            else: # None specified
+                doses = [dlvh.dose for dlvh in dlvhs]
+                lets = [dlvh.let for dlvh in dlvhs] 
+                dose_edges, let_edges = suggest_common_edges_2d(dose_arrays=doses, let_arrays=lets)
+                bin_edges = [dose_edges, let_edges]
+        else:
+            bin_edges = [dose_edges, let_edges]
+
+    # Rebin histos
+    rebinned_histos = []
+    for dlvh in dlvhs:
+        if aggregate_histo_1D:
+            if quantity == "dvh":
+                h = dlvh.dose_volume_histogram(bin_edges=bin_edges,
+                                               normalize=normalize, cumulative=cumulative)
+            else:
+                h = dlvh.let_volume_histogram(bin_edges=bin_edges,
+                                              normalize=normalize, cumulative=cumulative)
+            rebinned_histos.append(h)
+        else: 
+            h2d = dlvh.dose_let_volume_histogram(dose_edges=dose_edges,
+                                                 let_edges=let_edges,
+                                                 normalize=normalize,
+                                                 cumulative=cumulative)
+            rebinned_histos.append(h2d)
+
+    return rebinned_histos, bin_edges
+    
 def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, Histogram2D]],
                                  ae_histograms: List[Union[Histogram1D, Histogram2D]], 
                                  alpha: float = 0.05,
@@ -195,23 +216,21 @@ def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, His
     # Stack histogram values 
     control_group = np.stack([histo.values for histo in control_histograms])
     ae_group = np.stack([histo.values for histo in ae_histograms])
-    
     shape = (control_group.shape[1], control_group.shape[2])
-    original_p_values = np.full(shape, 0.5)
+    original_p_values = np.full(shape, 1.0, dtype=float)
 
     # Perform Mann-Whitney u test
     for idx in np.ndindex(shape):
-        control = [histo.values[idx] for histo in control_group.values]
-        ae = [histo.values[idx] for histo in ae_group.values]
+        control = control_group[:, idx[0], idx[1]]
+        ae = ae_group[:, idx[0], idx[1]]
         _, p = mannwhitneyu(control, ae, alternative="two-sided")
         original_p_values[idx] = p
 
     original_p_values = original_p_values.flatten()
-    
+
     # Apply test correction
     if correction:
-        reject, p_values, _, _ = multipletests(original_p_values, alpha=alpha, method='holm')
-        reject, p_values, _, _ = multipletests(original_p_values, alpha=alpha, method='fdr_bh')
+        reject, p_values, _, _ = multipletests(original_p_values, alpha=alpha, method=correction)
     else:
         reject = original_p_values < alpha
         p_values = original_p_values
@@ -220,7 +239,6 @@ def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, His
     significance = reject.reshape(shape)
 
     return p_values, significance
-
 
 def get_auc_score(control_histograms: Union[List[Histogram1D], List[Histogram2D]],
                   ae_histograms: Union[List[Histogram1D], List[Histogram2D]])  -> np.ndarray:
@@ -232,15 +250,15 @@ def get_auc_score(control_histograms: Union[List[Histogram1D], List[Histogram2D]
     ae_group = np.stack([histo.values for histo in ae_histograms])
     
     shape = (control_group.shape[1], control_group.shape[2])
-    auc_map = np.full(shape, 0.5)
+    auc_map = np.full(shape, 0.5, dtype=float)
 
     for idx in np.ndindex(shape):
 
-        control_value = control_group[:, idx]
-        ae_value = ae_group[:, idx]
+        control_value = control_group[:, idx[0], idx[1]]
+        ae_value = ae_group[:, idx[0], idx[1]]
 
-        y_true = np.array([0]*len(control_value) + [1]*len(ae_value))
-        y_scores = np.concatenate([control_value, ae_value])
+        y_true = np.array([0]*len(ae_value) + [1]*len(control_value))
+        y_scores = np.concatenate([ae_value, control_value])
 
         # Only compute AUC if there is variation in data
         if np.unique(y_scores).size > 1:
