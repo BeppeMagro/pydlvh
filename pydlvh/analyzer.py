@@ -257,8 +257,8 @@ def get_auc_score(control_histograms: Union[List[Histogram1D], List[Histogram2D]
         control_value = control_group[:, idx[0], idx[1]]
         ae_value = ae_group[:, idx[0], idx[1]]
 
-        y_true = np.array([0]*len(control_value) + [1]*len(ae_value))
-        y_scores = np.concatenate([control_value, ae_value])
+        y_true = np.array([0]*len(ae_value) + [1]*len(control_value))
+        y_scores = np.concatenate([ae_value, control_value])
 
         # Only compute AUC if there is variation in data
         if np.unique(y_scores).size > 1:
