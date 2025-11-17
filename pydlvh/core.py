@@ -16,7 +16,8 @@ class Histogram1D:
                  err: Optional[np.ndarray] = None,
                  p_lo: Optional[np.ndarray] = None,
                  p_hi: Optional[np.ndarray] = None,
-                 stat: Optional[str] = None):
+                 stat: Optional[str] = None,
+                 aggregatedby: Optional[str] = None):
         self.values = np.asarray(values, dtype=float)
         self.edges = np.asarray(edges, dtype=float)
         self.quantity = str(quantity)
@@ -30,6 +31,8 @@ class Histogram1D:
         self.p_lo = None if p_lo is None else np.asarray(p_lo, dtype=float)
         self.p_hi = None if p_hi is None else np.asarray(p_hi, dtype=float)
         self.stat = stat if stat else None
+        self.aggregated = False if stat else True # Aggregation is deduced from stat declaration
+        self.aggregatedby = aggregatedby
 
     def get_data(self, *, x: Literal["edges", "centers"] = "edges") -> Tuple[np.ndarray, np.ndarray]:
         """Return x-axis coordinates and histogram values."""
@@ -46,7 +49,7 @@ class Histogram1D:
         return edges, values
     
     def plot(self, *, ax: Optional[plt.Axes] = None,
-             show_band: bool = True, **kwargs):
+             show_band: bool = True, band_color: str = None, **kwargs):
         """
         Plot the histogram (cumulative curve or differential bar chart).
     
@@ -73,6 +76,8 @@ class Histogram1D:
     
         # Plot uncertainty range
         if show_band:
+            if not band_color:
+                band_color = "gray"
             n = len(values)
     
             def _fix_len(arr: Optional[np.ndarray]) -> Optional[np.ndarray]:
@@ -92,7 +97,7 @@ class Histogram1D:
                     y_lo = values - err
                     y_hi = values + err
                     ax.fill_between(x_band, y_lo, y_hi,
-                                    step=step_kw, alpha=0.1, color="gray", label="±std")
+                                    step=step_kw, alpha=0.2, color=band_color)#, label="±std")
     
             # percentile band
             if self.p_lo is not None and self.p_hi is not None:
@@ -100,7 +105,7 @@ class Histogram1D:
                 phi = _fix_len(self.p_hi)
                 if plo is not None and phi is not None:
                     ax.fill_between(x_band, plo, phi,
-                                    step=step_kw, alpha=0.1, color="gray", label="IQR")
+                                    step=step_kw, alpha=0.2, color=band_color)#, label="IQR")
     
         # Labels
         if self.x_label:
@@ -108,7 +113,7 @@ class Histogram1D:
         elif self.quantity == "dose":
             ax.set_xlabel("Dose [Gy(RBE)]")
         elif self.quantity == "let":
-            ax.set_xlabe(r"LET$_{d}$ [keV/µm]")
+            ax.set_xlabel(r"LET$_{d}$ [keV/µm]")
     
         if self.normalize:
             # ax.set_ylabel(f"{'Cumulative' if self.cumulative else 'Differential'} Volume [%]")
@@ -146,7 +151,7 @@ class Histogram2D:
         self.p_lo = None if p_lo is None else np.asarray(p_lo, dtype=float)
         self.p_hi = None if p_hi is None else np.asarray(p_hi, dtype=float)
         self.stat = stat if stat else None
-        self.aggregated = False if err is None or p_lo is None else True
+        self.aggregated = False if stat else True # Aggregation is deduced from stat declaration
    
     def plot(self, *, ax: Optional[plt.Axes] = None,
              cmap: str = "viridis", colorbar: bool = True,
@@ -250,7 +255,7 @@ class Histogram2D:
                             data,
                             levels=levels_abs,
                             colors=isovolumes_colors if isovolumes_colors else "white",
-                            linewidths=2)
+                            linewidths=1)
             fmt = (lambda v: f"{v:g}%") if self.normalize else (lambda v: f"{v:.2f}cm³")
             ax.clabel(CS, inline=True, fontsize=10, fmt=fmt)
 
@@ -315,7 +320,6 @@ class Histogram2D:
 
         if not ax: plt.show()
         return ax
-
 
     def get_marginals(self, *, kind: Literal["dose", "let"] = "dose") -> Tuple[np.ndarray, np.ndarray]:
         """Return the marginal histogram as (edges, values). Only for cumulative 2D."""
@@ -422,7 +426,8 @@ class DLVH:
                           bin_width: Optional[float] = None,
                           bin_edges: Optional[np.ndarray] = None,
                           normalize: bool = True,
-                          cumulative: bool = True) -> Histogram1D:
+                          cumulative: bool = True,
+                          aggregatedby: str = None) -> Histogram1D:
         if bin_edges is not None:
             edges = np.asarray(bin_edges, dtype=float)
         elif bin_width is None:
@@ -443,17 +448,20 @@ class DLVH:
         xlab = f"Dose [{self.dose_units}]" if quantity == "dose" else f"LET [{self.let_units}]"
         return Histogram1D(values=values, edges=edges,
                            quantity=quantity, normalize=normalize,
-                           cumulative=cumulative, x_label=xlab)
+                           cumulative=cumulative, x_label=xlab, aggregatedby=aggregatedby)
 
     def dose_volume_histogram(self, *, bin_width: Optional[float] = None,
                               bin_edges: Optional[np.ndarray] = None,
                               normalize: bool = True,
                               cumulative: bool = True,
-                              let_threshold: float = 0.0) -> Histogram1D:
+                              let_threshold: float = 0.0,
+                              aggregatedby: str = None) -> Histogram1D:
         if self.dose is None:
             raise RuntimeError("Dose array not available for DVH.")
         if let_threshold > 0 and self.let is None:
             raise RuntimeError("LET array required to apply let_threshold.")
+        if aggregatedby not in [None, "dose", "volume"]:
+            raise ValueError("Unsupported aggregateby. Choose 'dose' or 'volume'.")
 
         mask = np.ones_like(self.dose, dtype=bool) if self.let is None else self.let >= let_threshold
         data = self.dose[mask]
@@ -461,17 +469,21 @@ class DLVH:
 
         return self._volume_histogram(data=data, weights=weights, quantity="dose",
                                       bin_width=bin_width, bin_edges=bin_edges,
-                                      normalize=normalize, cumulative=cumulative)
+                                      normalize=normalize, cumulative=cumulative,
+                                      aggregatedby=aggregatedby)
 
     def let_volume_histogram(self, *, bin_width: Optional[float] = None,
                              bin_edges: Optional[np.ndarray] = None,
                              normalize: bool = True,
                              cumulative: bool = True,
-                             dose_threshold: float = 0.0) -> Histogram1D:
+                             dose_threshold: float = 0.0,
+                             aggregatedby: str = None) -> Histogram1D:
         if self.let is None:
             raise RuntimeError("LET array not available for LVH.")
         if dose_threshold > 0 and self.dose is None:
             raise RuntimeError("Dose array required to apply dose_threshold.")
+        if aggregatedby not in [None, "let", "volume"]:
+            raise ValueError("Unsupported aggregateby. Choose 'let' or 'volume'.")
 
         mask = np.ones_like(self.let, dtype=bool) if self.dose is None else self.dose >= dose_threshold
         data = self.let[mask]
@@ -479,7 +491,8 @@ class DLVH:
 
         return self._volume_histogram(data=data, weights=weights, quantity="let",
                                       bin_width=bin_width, bin_edges=bin_edges,
-                                      normalize=normalize, cumulative=cumulative)
+                                      normalize=normalize, cumulative=cumulative,
+                                      aggregatedby=aggregatedby)
 
     def dose_let_volume_histogram(self, *,
                                   bin_width_dose: Optional[float] = None,

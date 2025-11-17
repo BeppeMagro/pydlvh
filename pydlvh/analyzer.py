@@ -15,6 +15,21 @@ from .utils import suggest_common_edges, suggest_common_edges_2d
     of histogram cohorts or compare control and adverse event (ae) groups to investigate 
     possible statistical difference.
 """
+
+def dose_at_volume(histogram: Histogram1D, 
+                   volume_grid: np.ndarray) -> np.ndarray:
+
+    """ Get dose at specified volume levels (Dx%s) from a DVH histogram. """
+
+    doses = 0.5 * (histogram.edges[:-1] + histogram.edges[1:])  # bin centers
+    volumes = histogram.values
+
+    if volumes[0] < volumes[-1]:
+        volumes = volumes[::-1]
+        doses = doses[::-1]
+
+    # Interpolate: volume -> dose
+    return np.interp(volume_grid, volumes[::-1], doses[::-1]) 
         
 def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D, Histogram2D]]],
              validate_edges: bool = True):
@@ -36,17 +51,69 @@ def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D,
                     raise ValueError("All 2D histograms must have matching dose and LET edges.")
             
             elif isinstance(reference_histogram, Histogram1D):
-                if not np.array_equal(reference_histogram.edges, h.edges) and validate_edges:
-                    raise ValueError("All 1D histograms must have matching edges.")
+                # Validate either dose/let edges (x sampling) or volume edges (y sampling)
+                if validate_edges:
+                    if not np.array_equal(reference_histogram.edges, h.edges) or not np.array_equal(reference_histogram.values, h.values):
+                        raise ValueError("All 1D histograms must have matching edges either on the dose/let or the volumes axis.")
+                    
+                # Validate quantity type
                 if reference_histogram.quantity != h.quantity:
-                    raise ValueError("All 1D histograms must contain the same quantity type (dose or let).")
+                    raise ValueError("All 1D histograms must contain the same quantity type ('dvh' or 'lvh').")
+                
+                # If aggregated, validate aggregation modality
+                if hasattr(reference_histogram, 'aggregatedby') and hasattr(h, 'aggregatedby'):
+                    if reference_histogram.aggregatedby != h.aggregatedby:
+                        raise ValueError("If aggregated, all 1D histograms must be aggregated by the same modality ('dose', 'let' or 'volume').")
+
+def build_statistics_matrix(control_histograms, ae_histograms,
+                            fill_value: float = 1.0,
+                            test: str = "Mann-Whitney",
+                            volume_grid: np.ndarray = np.linspace(0, 100, 101)) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+
+    # Check what type of histogram was provided
+    reference_histogram = control_histograms[0]
+    histo_type = type(reference_histogram) 
+    is_aggregated = hasattr(reference_histogram, 'aggregatedby') and reference_histogram.aggregatedby is not None
+
+    if histo_type == Histogram1D: # Histogram1D
+        if is_aggregated:
+            if reference_histogram.aggregatedby == "volume":
+                # Invert histograms and stack
+                control_group = np.stack([dose_at_volume(histo, volume_grid=volume_grid) for histo in control_histograms])
+                ae_group = np.stack([dose_at_volume(histo, volume_grid=volume_grid) for histo in ae_histograms])
+            elif reference_histogram.aggregatedby in ["dose", "let"]:
+                # Just stack histograms
+                control_group = np.stack([histo.values for histo in control_histograms])
+                ae_group = np.stack([histo.values for histo in ae_histograms])
+            else:
+                raise ValueError(f"For Histogram1D {test} test, histograms must be aggregated by 'volume', 'dose' or 'let'.")
+        
+        else:
+            # Default option: assuming aggregation by volume
+            # Invert histograms
+            control_group = np.stack([dose_at_volume(histo, volume_grid=volume_grid) for histo in control_histograms])
+            ae_group = np.stack([dose_at_volume(histo, volume_grid=volume_grid) for histo in ae_histograms])
+
+        shape = (control_group.shape[1])
+        original_stats_matrix = np.full(shape, fill_value, dtype=float)
+    
+    else: # Histogram2D
+        # Stack histogram values 
+        control_group = np.stack([histo.values for histo in control_histograms])
+        ae_group = np.stack([histo.values for histo in ae_histograms])
+        shape = (control_group.shape[1], control_group.shape[2])
+        original_stats_matrix = np.full(shape, fill_value, dtype=float)
+
+    return control_group, ae_group, original_stats_matrix, shape
 
 def aggregate(
         dlvhs: Union[DLVH, List[DLVH]],
         quantity: Optional[Literal["dvh", "lvh", "dlvh"]] = None,
+        aggregateby: Optional[Literal["volume", "dose", "let"]] = None,
         stat: Literal["mean", "median"] = "median",
         dose_edges: Optional[np.ndarray] = None,
         let_edges: Optional[np.ndarray] = None,
+        volume_edges: Optional[np.ndarray] = None,
         normalize: bool = True,
         cumulative: bool = True,
         dose_units: str = "Gy(RBE)",
@@ -57,10 +124,23 @@ def aggregate(
 
     aggregate_histo_1D = True if (quantity == "dvh" or quantity == "lvh") else False
     aggregate_histo_2D = True if (quantity == "dlvh") else False
+
+    # Check quantity and aggregation modality coherence 
+    if aggregateby not in ["dose", "let", "volume", None]: 
+        raise ValueError(f"Unsupported aggregateby. Choose 'dose', 'let' or 'volume'.")
+    if aggregate_histo_1D:
+        if not aggregateby: aggregateby = "volume" # Automatically choose aggregation by volume if not specified
+        # Automatically correct possible assignment errors? 
+        if quantity == "dvh" and aggregateby == "let": aggregateby = "dose"
+        if quantity == "lvh" and aggregateby == "dose": aggregateby = "let"
+    # if aggregate_histo_2D: only aggregation by (d,l) is meaningful, any aggregateby assigment can be ignored
+
     rebinned_histos, bin_edges = get_all_cohort_histograms(dlvhs=dlvhs, 
                                                            dose_edges=dose_edges, 
                                                            let_edges=let_edges, 
+                                                           volume_edges=volume_edges,
                                                            quantity=quantity, 
+                                                           aggregateby=aggregateby,
                                                            cumulative=cumulative, 
                                                            normalize=normalize)
     rebinned_values = [h.values for h in rebinned_histos]
@@ -82,14 +162,13 @@ def aggregate(
     let_label = r"LET$_{d}$ " + f"[{let_units}]"
 
     if not isinstance(dlvhs, list): print("\nWatch out! You have only passed one dlvh to be processed.n") 
-    print(f"You aggregated a cohort of {len(dlvhs)} {quantity}s.")
-    if not quantity: print("(Default quantity was not provided but inferred to be 'dlvh').")
+    if not quantity: print("Default quantity was not provided but inferred to be 'dlvh'.")
     if aggregate_histo_1D:
-        label = dose_label if quantity == "dose" else let_label
+        label = dose_label if quantity == "dvh" else let_label
         return Histogram1D(values=aggregate, edges=bin_edges,
                            quantity=quantity, normalize=normalize,
                            cumulative=cumulative, x_label=label,
-                           err=error, p_lo=lower_percentile, p_hi=higher_percentile, stat=stat)
+                           err=error, p_lo=lower_percentile, p_hi=higher_percentile, stat=stat, aggregatedby=aggregateby)
     elif aggregate_histo_2D: 
         return Histogram2D(values=aggregate,
                            dose_edges=bin_edges[0], let_edges=bin_edges[1],
@@ -97,7 +176,7 @@ def aggregate(
                            dose_label=dose_label, let_label=let_label,
                            err=error, p_lo=lower_percentile, p_hi=higher_percentile, stat=stat)
     else:
-        return None        
+        return None
 
 def aggregate_marginals(
         histograms: Union[Histogram2D, List[Union[Histogram2D]]],
@@ -143,7 +222,9 @@ def get_all_cohort_histograms(
         dlvhs: Union[DLVH, List[DLVH]],
         dose_edges: Optional[np.ndarray] = None,
         let_edges: Optional[np.ndarray] = None,
+        volume_edges: Optional[np.ndarray] = None,
         quantity: Literal["dhv", "lvh", "dlvh"] = None,
+        aggregateby: Optional[Literal["volume", "dose", "let"]] = None,
         cumulative: bool = True,
         normalize: bool = True
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -155,12 +236,23 @@ def get_all_cohort_histograms(
 
     # Create common bin edges if not declared
     if aggregate_histo_1D: 
-        if dose_edges is None and let_edges is None:
-            if quantity=="dvh": arrays = [dlvh.dose for dlvh in dlvhs]
-            else: arrays = [dlvh.let for dlvh in dlvhs]
-            bin_edges = suggest_common_edges(arrays=arrays)
+        # if bin edges are provided
+        all_edges = [dose_edges, let_edges, volume_edges]
+        if any(x is None for x in all_edges):
+            provided_edges = [e for e in all_edges if e is not None]
+            if len(provided_edges) == 1: bin_edges = provided_edges[0]
+            elif volume_edges in provided_edges: bin_edges = volume_edges
+            else: bin_edges = provided_edges[0] # When too many are assigned (but not volume), random assignment between dose/let
+
+        # else automatic binning
         else:
-            bin_edges = dose_edges if let_edges is None else let_edges
+            if aggregateby == "volume": 
+                start, stop, bin_width = 0, 100, 1 # from D1% to D99% with steps of 1%
+                volumes = np.arange(start, stop + bin_width, bin_width)
+                bin_edges = volumes[:-1] + bin_width / 2
+            else:
+                arrays = [dlvh.dose if aggregateby == "dose" else dlvh.let for dlvh in dlvhs]
+                bin_edges = suggest_common_edges(arrays=arrays)
 
     elif aggregate_histo_2D:
         if dose_edges is None or let_edges is None:
@@ -181,7 +273,7 @@ def get_all_cohort_histograms(
                 lets = [dlvh.let for dlvh in dlvhs] 
                 dose_edges, let_edges = suggest_common_edges_2d(dose_arrays=doses, let_arrays=lets)
                 bin_edges = [dose_edges, let_edges]
-        else:
+        else: # All specified
             bin_edges = [dose_edges, let_edges]
 
     # Rebin histos
@@ -189,11 +281,11 @@ def get_all_cohort_histograms(
     for dlvh in dlvhs:
         if aggregate_histo_1D:
             if quantity == "dvh":
-                h = dlvh.dose_volume_histogram(bin_edges=bin_edges,
-                                               normalize=normalize, cumulative=cumulative)
+                h = dlvh.dose_volume_histogram(bin_edges=bin_edges, normalize=normalize, 
+                                               cumulative=cumulative, aggregateby=aggregateby)
             else:
-                h = dlvh.let_volume_histogram(bin_edges=bin_edges,
-                                              normalize=normalize, cumulative=cumulative)
+                h = dlvh.let_volume_histogram(bin_edges=bin_edges, normalize=normalize, 
+                                              cumulative=cumulative, aggregateby=aggregateby)
             rebinned_histos.append(h)
         else: 
             h2d = dlvh.dose_let_volume_histogram(dose_edges=dose_edges,
@@ -206,23 +298,31 @@ def get_all_cohort_histograms(
     
 def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, Histogram2D]],
                                  ae_histograms: List[Union[Histogram1D, Histogram2D]], 
+                                 volume_grid: np.ndarray = np.linspace(0, 100, 101), # Volume grid for Mann-Whitney testing on Histogram1D (testing Dx%)
                                  alpha: float = 0.05,
                                  correction: Optional[Literal["holm", "fdr_bh"]] = None) -> Tuple[np.ndarray, np.ndarray]:
-
+    
     """ Perform voxel-wise Mann-Whitney U test between control and ae groups. """
 
     validate([*control_histograms, *ae_histograms])
 
-    # Stack histogram values 
-    control_group = np.stack([histo.values for histo in control_histograms])
-    ae_group = np.stack([histo.values for histo in ae_histograms])
-    shape = (control_group.shape[1], control_group.shape[2])
-    original_p_values = np.full(shape, 1.0, dtype=float)
+    # Check what type of histogram was provided
+    reference_histogram = control_histograms[0]
+    histo_type = type(reference_histogram) 
+    control_group, ae_group, original_p_values, shape = build_statistics_matrix(control_histograms,
+                                                                                ae_histograms, 
+                                                                                fill_value=1.0,
+                                                                                test="Mann-Whitney",
+                                                                                volume_grid=volume_grid)
 
     # Perform Mann-Whitney u test
     for idx in np.ndindex(shape):
-        control = control_group[:, idx[0], idx[1]]
-        ae = ae_group[:, idx[0], idx[1]]
+        if histo_type == Histogram1D:
+            control = control_group[:, idx[0]]
+            ae = ae_group[:, idx[0]]
+        else: # Histogram2D
+            control = control_group[:, idx[0], idx[1]]
+            ae = ae_group[:, idx[0], idx[1]]
         _, p = mannwhitneyu(control, ae, alternative="two-sided")
         original_p_values[idx] = p
 
@@ -241,16 +341,19 @@ def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, His
     return p_values, significance
 
 def get_auc_score(control_histograms: Union[List[Histogram1D], List[Histogram2D]],
-                  ae_histograms: Union[List[Histogram1D], List[Histogram2D]])  -> np.ndarray:
+                  ae_histograms: Union[List[Histogram1D], List[Histogram2D]],
+                  volume_grid: np.ndarray = np.linspace(0, 100, 101))  -> np.ndarray:
     
     validate([*control_histograms, *ae_histograms])
 
-    # Stack histogram values 
-    control_group = np.stack([histo.values for histo in control_histograms])
-    ae_group = np.stack([histo.values for histo in ae_histograms])
-    
-    shape = (control_group.shape[1], control_group.shape[2])
-    auc_map = np.full(shape, 0.5, dtype=float)
+    # Check what type of histogram was provided
+    reference_histogram = control_histograms[0]
+    histo_type = type(reference_histogram) 
+    control_group, ae_group, auc_map, shape = build_statistics_matrix(control_histograms,
+                                                                      ae_histograms, 
+                                                                      fill_value=0.5,
+                                                                      test="AUC score",
+                                                                      volume_grid=volume_grid)
 
     for idx in np.ndindex(shape):
 
