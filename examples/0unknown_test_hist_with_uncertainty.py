@@ -1,3 +1,10 @@
+"""
+04a_test_hist_with_uncertainty.py
+=================
+Minimal usage of DLVH: explore DVH and LVH contruction
+and uncertainty representation (cumulative vs differential, normalized vs absolute).
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 from pydlvh.core import Histogram1D, Histogram2D
@@ -50,7 +57,6 @@ def demo_histogram1d():
     ax.set_title("DVH")
     plt.show()
 
-
 def demo_histogram2d():
     dose_edges = np.linspace(0, 10, 21)
     let_edges = np.linspace(0, 5, 11)
@@ -89,7 +95,6 @@ def demo_histogram2d():
     hist2d.plot(ax=ax, cmap="plasma", mode="p_hi")
     ax.set_title("DLVH - upper percentile")
     plt.show()
-
 
 if __name__ == "__main__":
     demo_histogram1d()

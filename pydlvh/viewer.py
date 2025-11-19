@@ -44,7 +44,7 @@ class DLVHViewer:
         self.fig, (self.ax_dvh, self.ax_lvh) = plt.subplots(1, 2, figsize=(12, 5))
         plt.subplots_adjust(bottom=0.25, wspace=0.3)
 
-        # --- DVH cumulative [%] ---
+        #  DVH cumulative [%] 
         dvh = self.dlvh.dose_volume_histogram(cumulative=True, normalize=True)
         edges, values = dvh.edges, dvh.values
         if edges[0] > 0:
@@ -52,19 +52,18 @@ class DLVHViewer:
             values = np.insert(values, 0, values[0])
 
         (self.dvh_line,) = self.ax_dvh.step(
-            edges[:-1], values, where="post", color="C0", label="DVH (cumulative)")
-        self.ax_dvh.set_title("DVH (cumulative)")
+            edges[:-1], values, where="post", color="C0", label="DVH\n(cumulative)")
+        self.ax_dvh.set_title("DVH")
         self.ax_dvh.set_xlabel(f"Dose [{self.dlvh.dose_units}]")
         self.ax_dvh.set_ylabel("Volume [%]")
         self.ax_dvh.set_xlim(left=0)
         self.ax_dvh.set_ylim(bottom=0)
-        self.ax_dvh.grid(True)
-        self.ax_dvh.legend(loc="upper right")
+        self.ax_dvh.grid(True, alpha=0.2)
 
         # Vertical threshold line on DVH
         self.vline = self.ax_dvh.axvline(0, color="red", linestyle="--", lw=1.5)
 
-        # --- DVH differential overlay [%] ---
+        # DVH differential overlay [%] 
         dvh_diff = self.dlvh.dose_volume_histogram(cumulative=False, normalize=True)
         edges_d, values_d = dvh_diff.edges, dvh_diff.values
         centers = 0.5 * (edges_d[:-1] + edges_d[1:])
@@ -75,11 +74,12 @@ class DLVHViewer:
             centers, values_d,
             width=widths,
             color="C0", alpha=0.3,
-            align="center", label="DVH (differential)")
+            align="center", label="DVH\n(differential)")
         ax_dvh_diff.set_ylabel("Differential volume [%]")
         ax_dvh_diff.set_ylim(bottom=0)
+        self.fig.legend(loc="upper right", bbox_to_anchor=(1,1), bbox_transform=self.ax_dvh.transAxes, frameon=False)
 
-        # --- LVH cumulative (absolute cm³) ---
+        # LVH cumulative (absolute cm³) 
         lvh = self.dlvh.let_volume_histogram(cumulative=True, normalize=False)
         self.lvh_edges, self.lvh_values = lvh.edges, lvh.values
         if self.lvh_edges[0] > 0:
@@ -89,13 +89,13 @@ class DLVHViewer:
         (self.lvh_line,) = self.ax_lvh.step(
             self.lvh_edges[:-1], self.lvh_values, where="post",
             color="C1", label="LVH")
-        self.ax_lvh.set_title("LVH (cumulative)")
-        self.ax_lvh.set_xlabel(f"LET [{self.dlvh.let_units}]")
+        self.ax_lvh.set_title("LVH")
+        self.ax_lvh.set_xlabel(fr"LET$_d$ [{self.dlvh.let_units}]")
         self.ax_lvh.set_ylabel("Volume [cm³]")
         self.ax_lvh.set_xlim(left=0)
         self.ax_lvh.set_ylim(bottom=0)
-        self.ax_lvh.grid(True)
-        self.ax_lvh.legend()
+        self.ax_lvh.grid(True, alpha=0.2)
+        self.ax_lvh.legend(frameon=False)
 
         # Cross marker + text annotation for LVH
         (self.cross,) = self.ax_lvh.plot([], [], "ro", markersize=6)
@@ -103,18 +103,18 @@ class DLVHViewer:
             0.5, -0.2, "", transform=self.ax_lvh.transAxes,
             ha="center", va="top", fontsize=9)
 
-        # --- slider ---
+        # Slider 
         bin_width = float(np.diff(dvh.edges).mean()) if len(dvh.edges) > 1 else 0.1
         ax_slider = plt.axes([0.12, 0.1, 0.35, 0.05])
         self.slider = Slider(
-            ax_slider, f"Dose thr [{self.dlvh.dose_units}]",
+            ax_slider, f"Dose\nthreshold\n[{self.dlvh.dose_units}]",
             valmin=0.0,
             valmax=float(np.max(self.dlvh.dose)),
             valinit=0.0,
             valstep=bin_width if np.isfinite(bin_width) and bin_width > 0 else 0.1)
         self.slider.on_changed(self._update1D)
 
-        # connect clicks
+        # Connect clicks
         assert self.fig is not None
         self.fig.canvas.mpl_connect("button_press_event", self._on_click)
 
@@ -122,8 +122,8 @@ class DLVHViewer:
 
     def _update1D(self, val: float) -> None:
         """Update LVH when slider moves."""
-        thr = float(self.slider.val)  # type: ignore[union-attr]
-        self.vline.set_xdata([thr, thr])  # type: ignore[union-attr]
+        thr = float(self.slider.val)
+        self.vline.set_xdata([thr, thr])
 
         lvh_thr = self.dlvh.let_volume_histogram(
             cumulative=True, normalize=False, dose_threshold=thr
@@ -133,17 +133,16 @@ class DLVHViewer:
             self.lvh_edges = np.insert(self.lvh_edges, 0, 0.0)
             self.lvh_values = np.insert(self.lvh_values, 0, self.lvh_values[0])
 
-        self.lvh_line.set_data(self.lvh_edges[:-1], self.lvh_values)  # type: ignore[union-attr]
+        self.lvh_line.set_data(self.lvh_edges[:-1], self.lvh_values)
 
-        self.cross.set_data([], [])        # type: ignore[union-attr]
-        self.annotation.set_text("")       # type: ignore[union-attr]
+        self.cross.set_data([], [])
+        self.annotation.set_text("")
 
-        self.ax_lvh.relim()                # type: ignore[union-attr]
-        self.ax_lvh.autoscale_view(scalex=True, scaley=True)  # type: ignore[union-attr]
-        self.ax_lvh.set_xlim(left=0)       # type: ignore[union-attr]
-        self.ax_lvh.set_ylim(bottom=0)     # type: ignore[union-attr]
-
-        self.fig.canvas.draw_idle()        # type: ignore[union-attr]
+        self.ax_lvh.relim()
+        self.ax_lvh.autoscale_view(scalex=True, scaley=True)
+        self.ax_lvh.set_xlim(left=0)
+        self.ax_lvh.set_ylim(bottom=0)
+        self.fig.canvas.draw_idle() 
 
     def _on_click(self, event) -> None:
         """Handle clicks on LVH panel."""
@@ -156,16 +155,16 @@ class DLVHViewer:
         idx = int(np.argmin(np.abs(centers - event.xdata)))
 
         let_val = float(centers[idx])
-        vol_abs = float(self.lvh_values[idx])  # type: ignore[index]
+        vol_abs = float(self.lvh_values[idx])
         vol_rel = 100.0 * vol_abs / self.dlvh.volume_cc
 
-        self.cross.set_data([let_val], [vol_abs])  # type: ignore[union-attr]
-        self.annotation.set_text(                  # type: ignore[union-attr]
+        self.cross.set_data([let_val], [vol_abs])
+        self.annotation.set_text(                
             f"LET ≈ {let_val:.2f} {self.dlvh.let_units}, "
             f"V = {vol_abs:.2f} cm³ ({vol_rel:.1f} %)"
         )
 
-        self.fig.canvas.draw_idle()  # type: ignore[union-attr]
+        self.fig.canvas.draw_idle()
 
     # =========================================================
     # 2D DLVH
@@ -257,13 +256,13 @@ class DLVHViewer:
                     pass
             self._interactive_label_texts = []
 
-        level = float(self._slider2d.val)  # type: ignore[union-attr]
+        level = float(self._slider2d.val)
         if level <= 0 or level >= 100:
-            fig.canvas.draw_idle()  # type: ignore[union-attr]
+            fig.canvas.draw_idle()
             return
 
         level_val = level if normalize else level / 100.0 * self.dlvh.volume_cc
-        self._interactive_contour = ax.contour(  # type: ignore[union-attr]
+        self._interactive_contour = ax.contour(
             h2d.dose_edges[:-1],
             h2d.let_edges[:-1],
             h2d.values.T,
@@ -271,10 +270,10 @@ class DLVHViewer:
             colors="red",
             linewidths=1.5
         )
-        self._interactive_label_texts = ax.clabel(  # type: ignore[union-attr]
+        self._interactive_label_texts = ax.clabel(
             self._interactive_contour,
             inline=True,
             fontsize=8,
             fmt=lambda _: f"{level:.0f}%"
         )
-        fig.canvas.draw_idle()  # type: ignore[union-attr]
+        fig.canvas.draw_idle()

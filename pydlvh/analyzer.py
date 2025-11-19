@@ -122,6 +122,10 @@ def aggregate(
 
     """ Aggregate DVH/LVH/DLVH across a cohort. """
 
+    # Set default quantity
+    if not quantity: 
+        quantity = "dlvh"
+
     aggregate_histo_1D = True if (quantity == "dvh" or quantity == "lvh") else False
     aggregate_histo_2D = True if (quantity == "dlvh") else False
 
@@ -143,6 +147,7 @@ def aggregate(
                                                            aggregateby=aggregateby,
                                                            cumulative=cumulative, 
                                                            normalize=normalize)
+
     rebinned_values = [h.values for h in rebinned_histos]
     stack = np.stack(rebinned_values, axis=0) 
 
@@ -179,7 +184,7 @@ def aggregate(
         return None
 
 def aggregate_marginals(
-        histograms: Union[Histogram2D, List[Union[Histogram2D]]],
+        dlvhs: Union[DLVH, List[DLVH]],
         quantity: Literal["dose", "let"] = "median",
         stat: Literal["mean", "median"] = "median",
         normalize: bool = True,
@@ -191,32 +196,21 @@ def aggregate_marginals(
         Aggregate DVH or LVH derived from the 2D DLVH aggregate.
     """
 
-    # Check that proper 2D DLVHs are provided
-    if isinstance(histograms, list):
-        if not all(isinstance(histo, Histogram2D) for histo in histograms):
-            raise TypeError("For marginal DVH/LVH computation, all histograms must be 2D (DLVH).")
-    else:
-        if not type(histograms, Histogram2D):
-            raise TypeError("For marginal DVH/LVH computation, aggregated histogram must be 2D (DLVH).")
-
-    validate(histograms, validate_edges=False)
-
     # If not already, aggregate input
-    if not isinstance(histograms, list) and histograms.aggregated:
-        aggregated_histo = histograms
+    if not isinstance(dlvhs, list) and dlvhs.aggregated:
+        aggregated_histo = dlvhs
     else: 
-        aggregated_histo = aggregate(histograms, stat, normalize, cumulative)
-    
+        aggregated_histo = aggregate(dlvhs=dlvhs, stat=stat, normalize=normalize, cumulative=cumulative)
 
-    edges, values = aggregated_histo.get_marginals(kind=quantity)
+    edges, values = aggregated_histo.get_marginals(quantity=quantity)
     if not units: units = "Gy[RBE]" if quantity == "dose" else "keV/µm"
     label = f"{quantity} [{units}]"
     return Histogram1D(values=values, edges=edges,
-                        quantity=quantity, normalize=normalize,
-                        cumulative=cumulative, x_label=label,
-                        err=aggregated_histo.err[:, 0] if stat == "mean" and aggregated_histo.err is not None and quantity == "dose" else None,
-                        p_lo=aggregated_histo.p_lo[:, 0] if stat == "median" and aggregated_histo.p_lo is not None and quantity == "dose" else None,
-                        p_hi=aggregated_histo.p_hi[:, 0] if stat == "median" and aggregated_histo.p_hi is not None and quantity == "dose" else None)
+                       quantity=quantity, normalize=normalize,
+                       cumulative=cumulative, x_label=label,
+                       err=aggregated_histo.err[:, 0] if stat == "mean" and aggregated_histo.err is not None and quantity == "dose" else None,
+                       p_lo=aggregated_histo.p_lo[:, 0] if stat == "median" and aggregated_histo.p_lo is not None and quantity == "dose" else None,
+                       p_hi=aggregated_histo.p_hi[:, 0] if stat == "median" and aggregated_histo.p_hi is not None and quantity == "dose" else None)
 
 def get_all_cohort_histograms(
         dlvhs: Union[DLVH, List[DLVH]],
@@ -224,12 +218,17 @@ def get_all_cohort_histograms(
         let_edges: Optional[np.ndarray] = None,
         volume_edges: Optional[np.ndarray] = None,
         quantity: Literal["dhv", "lvh", "dlvh"] = None,
-        aggregateby: Optional[Literal["volume", "dose", "let"]] = None,
+        aggregateby: Optional[Literal["volume", "dose", "let"]] = None, # TODO: set this as mandatory?
         cumulative: bool = True,
         normalize: bool = True
     ) -> Tuple[np.ndarray, np.ndarray]:
 
     """ Return an array containing all the DVH/LVH/DLVHs from cohort after standardizing binning. """
+
+    # Set default quantity
+    if not quantity: 
+        quantity = "dlvh"
+
     # Check what type of histogram was provided
     aggregate_histo_1D = True if (quantity == "dvh" or quantity == "lvh") else False
     aggregate_histo_2D = True if (quantity == "dlvh") else False
@@ -237,22 +236,17 @@ def get_all_cohort_histograms(
     # Create common bin edges if not declared
     if aggregate_histo_1D: 
         # if bin edges are provided
-        all_edges = [dose_edges, let_edges, volume_edges]
-        if any(x is None for x in all_edges):
+        all_edges = [dose_edges, let_edges]
+        if any(x is not None for x in all_edges):
             provided_edges = [e for e in all_edges if e is not None]
+            # If only one type of edges are provided, use them
             if len(provided_edges) == 1: bin_edges = provided_edges[0]
-            elif volume_edges in provided_edges: bin_edges = volume_edges
-            else: bin_edges = provided_edges[0] # When too many are assigned (but not volume), random assignment between dose/let
+            else: bin_edges = provided_edges[0] # When too many are assigned, random assignment between dose/let
 
         # else automatic binning
         else:
-            if aggregateby == "volume": 
-                start, stop, bin_width = 0, 100, 1 # from D1% to D99% with steps of 1%
-                volumes = np.arange(start, stop + bin_width, bin_width)
-                bin_edges = volumes[:-1] + bin_width / 2
-            else:
-                arrays = [dlvh.dose if aggregateby == "dose" else dlvh.let for dlvh in dlvhs]
-                bin_edges = suggest_common_edges(arrays=arrays)
+            arrays = [dlvh.dose if aggregateby == "dose" else dlvh.let for dlvh in dlvhs]
+            bin_edges = suggest_common_edges(arrays=arrays)
 
     elif aggregate_histo_2D:
         if dose_edges is None or let_edges is None:
@@ -260,21 +254,17 @@ def get_all_cohort_histograms(
                 print("Only dose binning has been specified for aggregated dlvh. Let binning will be atuomatically set.")
                 lets = [dlvh.let for dlvh in dlvhs] 
                 let_edges = suggest_common_edges(arrays=lets)
-                bin_edges = np.stack(dose_edges, let_edges)
 
             elif let_edges is not None: # Only let provided
                 print("Only let binning has been specified for aggregated dlvh. Dose binning will be atuomatically set.")
                 doses = [dlvh.dose for dlvh in dlvhs] 
                 dose_edges = suggest_common_edges(arrays=doses)
-                bin_edges = np.stack(dose_edges, let_edges)
 
             else: # None specified
                 doses = [dlvh.dose for dlvh in dlvhs]
                 lets = [dlvh.let for dlvh in dlvhs] 
                 dose_edges, let_edges = suggest_common_edges_2d(dose_arrays=doses, let_arrays=lets)
-                bin_edges = [dose_edges, let_edges]
-        else: # All specified
-            bin_edges = [dose_edges, let_edges]
+        bin_edges = [dose_edges, let_edges]
 
     # Rebin histos
     rebinned_histos = []
@@ -282,10 +272,18 @@ def get_all_cohort_histograms(
         if aggregate_histo_1D:
             if quantity == "dvh":
                 h = dlvh.dose_volume_histogram(bin_edges=bin_edges, normalize=normalize, 
-                                               cumulative=cumulative, aggregateby=aggregateby)
+                                               cumulative=cumulative, aggregatedby=aggregateby)
+                # If aggregating by volume, recompute bin edges to match output histogram
+                if aggregateby == "volume":
+                    if volume_edges is None: volume_edges = np.linspace(1, 99, 100) # Dx% with x in [1, 99]
+                    recomputed_edges = dose_at_volume(h, volume_grid=volume_edges)
+                    h = dlvh.dose_volume_histogram(bin_edges=recomputed_edges[::-1], normalize=normalize, 
+                                                   cumulative=cumulative, aggregatedby=aggregateby)
+                    print("histo values: ", h.values)
+
             else:
                 h = dlvh.let_volume_histogram(bin_edges=bin_edges, normalize=normalize, 
-                                              cumulative=cumulative, aggregateby=aggregateby)
+                                              cumulative=cumulative, aggregatedby=aggregateby)
             rebinned_histos.append(h)
         else: 
             h2d = dlvh.dose_let_volume_histogram(dose_edges=dose_edges,
