@@ -63,7 +63,7 @@ def _freedman_diaconis_bins(*, data: np.ndarray, max_bins: int = 200) -> np.ndar
     return np.linspace(xmin, xmax, nbins + 1)
 
 
-def _auto_bins(*, arr: np.ndarray, max_bins: int = 200) -> np.ndarray:
+def _auto_bins(*, array: np.ndarray, max_bins: int = 200) -> np.ndarray:
     """
     Suggest optimal bin edges for a 1D histogram.
 
@@ -79,7 +79,7 @@ def _auto_bins(*, arr: np.ndarray, max_bins: int = 200) -> np.ndarray:
     bins : np.ndarray
         Bin edges for arr.
     """
-    return _freedman_diaconis_bins(data=arr, max_bins=max_bins)
+    return _freedman_diaconis_bins(data=array, max_bins=max_bins)
 
 
 def _suffix_cumsum2d(counts: np.ndarray) -> np.ndarray:
