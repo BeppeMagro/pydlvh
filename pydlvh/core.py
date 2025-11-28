@@ -426,7 +426,7 @@ class DLVH:
                         volume_grid: np.ndarray,
                         normalize: Optional[bool])->Tuple[np.ndarray, np.ndarray]:
         
-        # Sort data and weights according to 
+        # Sort data and weights according to data order
         sorted_indices = np.argsort(data)
         sorted_data = data[sorted_indices]
         sorted_weights = weights[sorted_indices]
@@ -438,12 +438,11 @@ class DLVH:
             cumulative_volume = (cumulative_volume / volume_cc) * 100.0
 
         # Invert DVH: compute D = f(V)
-        dose_grid = np.interp(volume_grid, cumulative_volume[::-1], sorted_data)
+        dose_grid = np.interp(volume_grid, cumulative_volume[::-1], sorted_data[::-1])
 
         centers = dose_grid
-        values = volume_grid
+        values = np.max(volume_grid) - volume_grid
 
-        ## From here
         edges = self._get_bin_edges(centers=centers)
         
         return centers, values, edges
@@ -544,11 +543,12 @@ class DLVH:
                                                     volume_grid=centers, # How do I check that the provided centers are correctly assigned based on normalization?
                                                                          # i.e.: normalization: [0, 100], no-normalization: [0, volume_cc]
                                                     normalize=normalize)
+                                                    #centers, values, edges
 
             # default binning + cumulative: volume binning
             else:
                 center_step = 1.0 if normalize else 0.01 # 1% or 0.1 cc step
-                centers = np.arange(0.5, 99.5+center_step, center_step) if normalize else np.arange(0, self.volume_cc+center_step, center_step) 
+                centers = np.arange(0, 100+center_step, center_step) if normalize else np.arange(0, self.volume_cc+center_step, center_step) 
                 _, values, edges = self._dose_at_volume(data=data,
                                                         weights=weights,
                                                         volume_cc=self.volume_cc,
