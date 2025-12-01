@@ -45,7 +45,6 @@ class Histogram1D:
 
         if self.cumulative and edges[0] > 0:
             edges = np.insert(edges, 0, 0.0)
-            values = np.insert(values, 0, values[0])
 
         return edges, values
     
@@ -64,6 +63,7 @@ class Histogram1D:
     
         # Plot Histogram1D (accounting for eventual padding)
         edges, values = self.get_data(x="edges")
+
         ax.step(edges[:-1], values, where="post", **kwargs)
         x_band = edges[:-1]
         step_kw = "post"
@@ -440,8 +440,12 @@ class DLVH:
         # Invert DVH: compute D = f(V)
         dose_grid = np.interp(volume_grid, cumulative_volume[::-1], sorted_data[::-1])
 
-        centers = dose_grid
-        values = np.max(volume_grid) - volume_grid
+        centers, unique_centers =  np.unique(dose_grid, return_index=True)
+        # unique() re-sorts the centers in ascending order, necessity to restore descending order
+        unique_centers = unique_centers[::-1]
+        # Get only the volume values associated with the unique dose centers
+        filtered_volume_grid = volume_grid[unique_centers]
+        values = np.max(filtered_volume_grid[centers >= np.min(centers)]) - filtered_volume_grid[centers >= np.min(centers)]
 
         edges = self._get_bin_edges(centers=centers)
         
@@ -457,10 +461,6 @@ class DLVH:
         # Compute bin edges from centers
         edges = (centers[:-1] + centers[1:]) / 2
 
-        # Set the first edge to zero if not zero
-        if centers[0] != 0: 
-            first_edge = 0.0
-            edges = np.concatenate(([first_edge], edges))
         # Determine the last edge (based on the width of the penultimate bin)
         if last_edge is None:
             last_bin_width = (centers[-1] - centers[-2]) / 2
@@ -548,7 +548,9 @@ class DLVH:
             # default binning + cumulative: volume binning
             else:
                 center_step = 1.0 if normalize else 0.01 # 1% or 0.1 cc step
-                centers = np.arange(0, 100+center_step, center_step) if normalize else np.arange(0, self.volume_cc+center_step, center_step) 
+                max_center = 100.0 if normalize else self.volume_cc
+                max_volume = max_center + center_step
+                centers = np.arange(0, max_volume, center_step) if normalize else np.arange(0, max_volume, center_step) 
                 _, values, edges = self._dose_at_volume(data=data,
                                                         weights=weights,
                                                         volume_cc=self.volume_cc,
@@ -604,8 +606,7 @@ class DLVH:
                                       normalize=normalize, cumulative=cumulative,
                                       aggregatedby=aggregatedby)
 
-    def dose_let_volume_histogram(self, *,
-                                  bin_width_dose: Optional[float] = None,
+    def dose_let_volume_histogram(self, *, bin_width_dose: Optional[float] = None,
                                   bin_width_let: Optional[float] = None,
                                   dose_edges: Optional[np.ndarray] = None,
                                   let_edges: Optional[np.ndarray] = None,
