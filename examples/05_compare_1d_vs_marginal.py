@@ -28,10 +28,10 @@ def main():
 
     # 1) Build DVHL/LVH with explicit bin width settings
     dvh_1d = dlvh.dose_volume_histogram(
-        bin_width=1.0, cumulative=cumulative, normalize=normalize
+        bin_width=1.0, cumulative=cumulative, normalize=normalize, aggregatedby="dose"
     )
     lvh_1d = dlvh.let_volume_histogram(
-        bin_width=0.1, cumulative=cumulative, normalize=normalize
+        bin_width=0.1, cumulative=cumulative, normalize=normalize, aggregatedby="let"
     )
 
     # 2) Build ciumulative DLVH with matching bin width settings
