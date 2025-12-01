@@ -43,9 +43,6 @@ class Histogram1D:
         if x == "centers":
             return 0.5 * (edges[:-1] + edges[1:]), values
 
-        if self.cumulative and edges[0] > 0:
-            edges = np.insert(edges, 0, 0.0)
-
         return edges, values
     
     def plot(self, *, ax: Optional[plt.Axes] = None,
@@ -447,11 +444,12 @@ class DLVH:
         filtered_volume_grid = volume_grid[unique_centers]
         values = np.max(filtered_volume_grid[centers >= np.min(centers)]) - filtered_volume_grid[centers >= np.min(centers)]
 
-        edges = self._get_bin_edges(centers=centers)
+        edges = self._get_bin_edges(centers=centers, first_edge=0.0)
         
         return centers, values, edges
     
     def _get_bin_edges(self, *, centers: np.ndarray,
+                       first_edge: Optional[float] = None,
                        last_edge: Optional[float] = None) -> np.ndarray:
 
         centers = np.asarray(centers, dtype=float)
@@ -461,7 +459,17 @@ class DLVH:
         # Compute bin edges from centers
         edges = (centers[:-1] + centers[1:]) / 2
 
-        # Determine the last edge (based on the width of the penultimate bin)
+        # Determine the first edge (based on the width of the first bin)
+        if first_edge is None:
+            first_bin_width = (centers[1] - centers[0]) / 2
+            first_edge = centers[0] - first_bin_width
+            if first_edge < 0:
+                first_edge = 0.0
+        else:
+            if first_edge > centers[0]:
+                raise ValueError("first_edge must be less than the first center value.")
+
+        # Determine the last edge (based on the width of the last bin)
         if last_edge is None:
             last_bin_width = (centers[-1] - centers[-2]) / 2
             last_edge = centers[-1] + last_bin_width
@@ -469,7 +477,7 @@ class DLVH:
             if last_edge <= centers[-1]:
                 raise ValueError("last_edge must be greater than the last center value.")
             
-        edges = np.concatenate((edges, [last_edge]))
+        edges = np.concatenate(([first_edge], edges, [last_edge]))
 
         return edges
 
@@ -492,7 +500,6 @@ class DLVH:
         if data_binning:
             # Bin centers provided for dose/let
             if bin_centers is not None:
-
                 # Get dose/let edges
                 edges = self._get_bin_edges(centers=bin_centers)
 
@@ -524,26 +531,25 @@ class DLVH:
 
             # Bin centers provided for volume
             if bin_centers is not None:
-
                 _, values, edges = self._dose_at_volume(data=data,
-                                                       weights=weights,
-                                                       volume_cc=self.volume_cc,
-                                                       volume_grid=bin_centers,
-                                                       normalize=normalize)
+                                                        weights=weights,
+                                                        volume_cc=self.volume_cc,
+                                                        volume_grid=bin_centers,
+                                                        normalize=normalize)
 
             # Bin width provided for volume
             elif bin_width is not None:
                 vol_max = 100.0 if normalize else self.volume_cc
                 n_bins = int(np.ceil(vol_max / bin_width)) if bin_width > 0 else 1
-                edges = np.linspace(0.0, n_bins * bin_width, n_bins + 1)
-                centers = (edges[:-1] + edges[1:]) / 2.0
-                _, values, _ = self._dose_at_volume(data=data,
-                                                    weights=weights,
-                                                    volume_cc=self.volume_cc,
-                                                    volume_grid=centers, # How do I check that the provided centers are correctly assigned based on normalization?
-                                                                         # i.e.: normalization: [0, 100], no-normalization: [0, volume_cc]
-                                                    normalize=normalize)
-                                                    #centers, values, edges
+                volume_edges = np.linspace(0.0, (1+n_bins) * bin_width, n_bins + 1)
+                centers = (volume_edges[:-1] + volume_edges[1:]) / 2.0
+                _, values, edges = self._dose_at_volume(data=data,
+                                                        weights=weights,
+                                                        volume_cc=self.volume_cc,
+                                                        volume_grid=centers, # How do I check that the provided centers are correctly assigned based on normalization?
+                                                                             # i.e.: normalization: [0, 100], no-normalization: [0, volume_cc]
+                                                        normalize=normalize)
+                                                        #centers, values, edges
 
             # default binning + cumulative: volume binning
             else:
