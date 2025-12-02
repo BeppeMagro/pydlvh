@@ -484,6 +484,7 @@ class DLVH:
     def _volume_histogram(self, *, data: np.ndarray, weights: np.ndarray,
                           quantity: str,
                           bin_centers: Optional[np.ndarray] = None,
+                          bin_edges: Optional[np.ndarray] = None,
                           bin_width: Optional[float] = None,
                           normalize: bool = True,
                           cumulative: bool = True,
@@ -493,7 +494,7 @@ class DLVH:
             raise ValueError("Unsupported aggregateby. Choose 'dose', 'let' or 'volume'.")
         volume_binning = aggregatedby == "volume" or (aggregatedby == None and cumulative)
         data_binning = aggregatedby == "dose" or aggregatedby == "let" or (aggregatedby == None and not cumulative)
-        if bin_centers is not None and len(bin_centers) < 2:
+        if bin_centers and len(bin_centers) < 2:
                 raise ValueError("At least two data_bin_centers elements are required to compute a volume histogram.")
         
         # Dose/let binning
@@ -508,6 +509,10 @@ class DLVH:
                 xmax = float(np.max(data))
                 n_bins = int(np.ceil(xmax / bin_width)) if bin_width > 0 else 1
                 edges = np.linspace(0.0, n_bins * bin_width, n_bins + 1)
+
+            # Bin edges provided for dose/let  
+            elif bin_edges:
+                edges = bin_edges
 
             else: # default binning: dose/let binning
                 edges = _auto_bins(array=data)
@@ -546,14 +551,22 @@ class DLVH:
                 _, values, edges = self._dose_at_volume(data=data,
                                                         weights=weights,
                                                         volume_cc=self.volume_cc,
-                                                        volume_grid=centers, # How do I check that the provided centers are correctly assigned based on normalization?
-                                                                             # i.e.: normalization: [0, 100], no-normalization: [0, volume_cc]
+                                                        volume_grid=centers,
                                                         normalize=normalize)
-                                                        #centers, values, edges
+
+            # Bin edges provided for volume
+            elif bin_edges:
+                volume_edges = bin_edges
+                centers = (volume_edges[:-1] + volume_edges[1:]) / 2.0
+                _, values, edges = self._dose_at_volume(data=data,
+                                                        weights=weights,
+                                                        volume_cc=self.volume_cc,
+                                                        volume_grid=centers,
+                                                        normalize=normalize)
 
             # default binning + cumulative: volume binning
             else:
-                center_step = 1.0 if normalize else 0.01 # 1% or 0.1 cc step
+                center_step = 0.01 if normalize else 0.01 # 0.01% or 0.01 cc step
                 max_center = 100.0 if normalize else self.volume_cc
                 max_volume = max_center + center_step
                 centers = np.arange(0, max_volume, center_step) if normalize else np.arange(0, max_volume, center_step) 

@@ -15,21 +15,6 @@ from .utils import suggest_common_edges, suggest_common_edges_2d
     of histogram cohorts or compare control and adverse event (ae) groups to investigate 
     possible statistical difference.
 """
-
-def dose_at_volume(histogram: Histogram1D, 
-                   volume_grid: np.ndarray) -> np.ndarray:
-
-    """ Get dose at specified volume levels (Dx%s) from a DVH histogram. """
-
-    doses = 0.5 * (histogram.edges[:-1] + histogram.edges[1:])  # bin centers
-    volumes = histogram.values
-
-    if volumes[0] < volumes[-1]:
-        volumes = volumes[::-1]
-        doses = doses[::-1]
-
-    # Interpolate: volume -> dose
-    return np.interp(volume_grid, volumes[::-1], doses[::-1]) 
         
 def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D, Histogram2D]]],
              validate_edges: bool = True):
@@ -79,8 +64,8 @@ def build_statistics_matrix(control_histograms, ae_histograms,
         if is_aggregated:
             if reference_histogram.aggregatedby == "volume":
                 # Invert histograms and stack
-                control_group = np.stack([dose_at_volume(histo, volume_grid=volume_grid) for histo in control_histograms])
-                ae_group = np.stack([dose_at_volume(histo, volume_grid=volume_grid) for histo in ae_histograms])
+                control_group = np.stack([DLVH._dose_at_volume(histo, volume_grid=volume_grid) for histo in control_histograms])
+                ae_group = np.stack([DLVH._dose_at_volume(histo, volume_grid=volume_grid) for histo in ae_histograms])
             elif reference_histogram.aggregatedby in ["dose", "let"]:
                 # Just stack histograms
                 control_group = np.stack([histo.values for histo in control_histograms])
@@ -91,8 +76,8 @@ def build_statistics_matrix(control_histograms, ae_histograms,
         else:
             # Default option: assuming aggregation by volume
             # Invert histograms
-            control_group = np.stack([dose_at_volume(histo, volume_grid=volume_grid) for histo in control_histograms])
-            ae_group = np.stack([dose_at_volume(histo, volume_grid=volume_grid) for histo in ae_histograms])
+            control_group = np.stack([DLVH._dose_at_volume(histo, volume_grid=volume_grid) for histo in control_histograms])
+            ae_group = np.stack([DLVH._dose_at_volume(histo, volume_grid=volume_grid) for histo in ae_histograms])
 
         shape = (control_group.shape[1])
         original_stats_matrix = np.full(shape, fill_value, dtype=float)
@@ -212,87 +197,117 @@ def aggregate_marginals(
                        p_lo=aggregated_histo.p_lo[:, 0] if stat == "median" and aggregated_histo.p_lo is not None and quantity == "dose" else None,
                        p_hi=aggregated_histo.p_hi[:, 0] if stat == "median" and aggregated_histo.p_hi is not None and quantity == "dose" else None)
 
+def normalize_to_list(x):
+    if x is None:
+        return []
+    if isinstance(x, (list, tuple)):
+        return list(x)
+    return [x]
+
+def compute_2d_edges(dlvhs: List[DLVH],
+                     dose_edges: Optional[np.ndarray] = None,
+                     let_edges: Optional[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
+    
+    if dose_edges is not None and let_edges is not None:
+        raise ValueError("compute_2d_edges is intended for missing edeges only.")
+    
+    if dose_edges is not None: # Only dose provided
+        print("Only dose binning has been specified for aggregated dlvh. Let binning will be atuomatically set.")
+        lets = [dlvh.let for dlvh in dlvhs] 
+        let_edges = suggest_common_edges(arrays=lets)
+
+    elif let_edges is not None: # Only let provided
+        print("Only let binning has been specified for aggregated dlvh. Dose binning will be atuomatically set.")
+        doses = [dlvh.dose for dlvh in dlvhs] 
+        dose_edges = suggest_common_edges(arrays=doses)
+
+    else: # None specified
+        doses = [dlvh.dose for dlvh in dlvhs]
+        lets = [dlvh.let for dlvh in dlvhs] 
+        dose_edges, let_edges = suggest_common_edges_2d(dose_arrays=doses, let_arrays=lets)
+
+    return dose_edges, let_edges
+
+def build_histogram(dlvh,
+                    quantity: Literal["dvh", "lvh", "dlvh"],
+                    edges: np.ndarray,
+                    cumulative: bool,
+                    normalize: bool,
+                    aggregateby: Optional[Literal["volume", "dose", "let"]] = None):
+
+    if quantity == "dvh":
+        return dlvh.dose_volume_histogram(
+            bin_edges=edges,
+            cumulative=cumulative,
+            normalize=normalize,
+            aggregatedby=aggregateby,
+        )
+
+    if quantity == "lvh":
+        return dlvh.let_volume_histogram(
+            bin_edges=edges,
+            cumulative=cumulative,
+            normalize=normalize,
+            aggregatedby=aggregateby,
+        )
+
+    if quantity == "dlvh":
+        dose_edges, let_edges = edges
+        return dlvh.dose_let_volume_histogram(
+            dose_edges=dose_edges,
+            let_edges=let_edges,
+            cumulative=cumulative,
+            normalize=normalize,
+        )
+
+    raise ValueError(f"Unsupported histogram quantity: {quantity}")
+
 def get_all_cohort_histograms(
         dlvhs: Union[DLVH, List[DLVH]],
-        dose_edges: Optional[np.ndarray] = None,
-        let_edges: Optional[np.ndarray] = None,
-        volume_edges: Optional[np.ndarray] = None,
-        quantity: Literal["dhv", "lvh", "dlvh"] = None,
-        aggregateby: Optional[Literal["volume", "dose", "let"]] = None, # TODO: set this as mandatory?
+        centers: Optional[np.ndarray] = None, # binning
+        x_edges: Optional[np.ndarray] = None, # binning along the first x-axis (D)
+        y_edges: Optional[np.ndarray] = None, # binning along the first y-axis (L)
+        quantity: Literal["dvh", "lvh", "dlvh"] = None,
+        aggregateby: Optional[Literal["volume", "dose", "let"]] = None,
         cumulative: bool = True,
         normalize: bool = True
     ) -> Tuple[np.ndarray, np.ndarray]:
 
     """ Return an array containing all the DVH/LVH/DLVHs from cohort after standardizing binning. """
 
-    # Set default quantity
-    if not quantity: 
-        quantity = "dlvh"
+    dlvhs = normalize_to_list(dlvhs)
+    quantity = quantity or "dlvh" # default quantity: dlvh
+    if quantity not in ["dvh", "lvh", "dlvh"]:
+        raise ValueError(f"Unrecognized {quantity}. Please select 'dvh', 'lvh', or 'dlvh'.")
+    edges = None
 
-    # Check what type of histogram was provided
-    aggregate_histo_1D = True if (quantity == "dvh" or quantity == "lvh") else False
-    aggregate_histo_2D = True if (quantity == "dlvh") else False
-
-    # Create common bin edges if not declared
-    if aggregate_histo_1D: 
-        # if bin edges are provided
-        all_edges = [dose_edges, let_edges]
-        if any(x is not None for x in all_edges):
-            provided_edges = [e for e in all_edges if e is not None]
-            # If only one type of edges are provided, use them
-            if len(provided_edges) == 1: bin_edges = provided_edges[0]
-            else: bin_edges = provided_edges[0] # When too many are assigned, random assignment between dose/let
-
-        # else automatic binning
+    # 1D case
+    if quantity in ("dvh", "lvh"):
+        if centers is not None:
+            edges = DLVH._get_bin_edges(centers=centers)
+        elif x_edges is not None:
+            edges = x_edges
         else:
-            arrays = [dlvh.dose if aggregateby == "dose" else dlvh.let for dlvh in dlvhs]
-            bin_edges = suggest_common_edges(arrays=arrays)
-
-    elif aggregate_histo_2D:
-        if dose_edges is None or let_edges is None:
-            if dose_edges is not None: # Only dose provided
-                print("Only dose binning has been specified for aggregated dlvh. Let binning will be atuomatically set.")
-                lets = [dlvh.let for dlvh in dlvhs] 
-                let_edges = suggest_common_edges(arrays=lets)
-
-            elif let_edges is not None: # Only let provided
-                print("Only let binning has been specified for aggregated dlvh. Dose binning will be atuomatically set.")
-                doses = [dlvh.dose for dlvh in dlvhs] 
-                dose_edges = suggest_common_edges(arrays=doses)
-
-            else: # None specified
-                doses = [dlvh.dose for dlvh in dlvhs]
-                lets = [dlvh.let for dlvh in dlvhs] 
-                dose_edges, let_edges = suggest_common_edges_2d(dose_arrays=doses, let_arrays=lets)
-        bin_edges = [dose_edges, let_edges]
-
-    # Rebin histos
-    rebinned_histos = []
-    for dlvh in dlvhs:
-        if aggregate_histo_1D:
-            if quantity == "dvh":
-                h = dlvh.dose_volume_histogram(bin_edges=bin_edges, normalize=normalize, 
-                                               cumulative=cumulative, aggregatedby=aggregateby)
-                # If aggregating by volume, recompute bin edges to match output histogram
-                if aggregateby == "volume":
-                    if volume_edges is None: volume_edges = np.linspace(1, 99, 100) # Dx% with x in [1, 99]
-                    recomputed_edges = dose_at_volume(h, volume_grid=volume_edges)
-                    h = dlvh.dose_volume_histogram(bin_edges=recomputed_edges[::-1], normalize=normalize, 
-                                                   cumulative=cumulative, aggregatedby=aggregateby)
-                    print("histo values: ", h.values)
-
-            else:
-                h = dlvh.let_volume_histogram(bin_edges=bin_edges, normalize=normalize, 
-                                              cumulative=cumulative, aggregatedby=aggregateby)
-            rebinned_histos.append(h)
+            arrays = [dlvh.dose if quantity == "dvh" else dlvh.let for dlvh in dlvhs]
+            edges = suggest_common_edges(arrays=arrays)    
+    
+    # 2D case
+    else:
+        if centers is not None:
+            raise ValueError("To create cohort DLVHs, centers do not need to be specified.")
+        
+        if x_edges is not None and y_edges is not None:
+            dose_edges, let_edges = x_edges, y_edges
         else: 
-            h2d = dlvh.dose_let_volume_histogram(dose_edges=dose_edges,
-                                                 let_edges=let_edges,
-                                                 normalize=normalize,
-                                                 cumulative=cumulative)
-            rebinned_histos.append(h2d)
+            dose_edges, let_edges = compute_2d_edges(dlvhs, x_edges, y_edges)
+        edges = (dose_edges, let_edges)
 
-    return rebinned_histos, bin_edges
+    rebinned_histos = [
+        build_histogram(dlvh, quantity, edges, aggregateby, cumulative, normalize)
+        for dlvh in dlvhs
+    ]
+
+    return rebinned_histos, edges
     
 def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, Histogram2D]],
                                  ae_histograms: List[Union[Histogram1D, Histogram2D]], 
