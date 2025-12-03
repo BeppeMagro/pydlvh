@@ -115,14 +115,29 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
     valid_aggregateby = ["dose", "let", "volume", None]
     if aggregateby not in valid_aggregateby:
         raise ValueError(f"Unsupported aggregateby '{aggregateby}'. Choose 'dose', 'let', or 'volume'.")
-
+    
     if is_1D:
+        # Set default aggregateby and correct potential mismatches
         aggregateby = aggregateby or ("volume")
-        # Correct potential mismatches
         if quantity == "dvh" and aggregateby == "let":
             aggregateby = "dose"
         if quantity == "lvh" and aggregateby == "dose":
             aggregateby = "let"
+
+        # Select edges for binning
+        if aggregateby == "dose":
+            x_edges = dose_edges
+        elif aggregateby == "let":
+            x_edges = let_edges
+        elif aggregateby == "volume":
+            x_edges = volume_edges
+        else:
+            x_edges = None
+        y_edges = None
+
+    elif is_2D:
+        x_edges = dose_edges
+        y_edges = let_edges
 
     # Normalize input to list of DLVHs (also for single DLVH provided)
     dlvhs = normalize_to_list(dlvhs)
@@ -130,9 +145,8 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
     # Get rebinned cohort histograms
     rebinned_histos, bin_edges = get_all_cohort_histograms(
         dlvhs=dlvhs,
-        dose_edges=dose_edges,
-        let_edges=let_edges,
-        volume_edges=volume_edges,
+        x_edges=x_edges,
+        y_edges=y_edges,
         quantity=quantity,
         aggregateby=aggregateby,
         cumulative=cumulative,
@@ -309,7 +323,7 @@ def get_all_cohort_histograms(
         edges = (dose_edges, let_edges)
 
     rebinned_histos = [
-        build_histogram(dlvh, quantity, edges, aggregateby, cumulative, normalize)
+        build_histogram(dlvh=dlvh, quantity=quantity, edges=edges, aggregateby=aggregateby, cumulative=cumulative, normalize=normalize)
         for dlvh in dlvhs
     ]
 
