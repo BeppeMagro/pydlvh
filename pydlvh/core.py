@@ -372,6 +372,7 @@ class DLVH:
                  dose: Optional[np.ndarray] = None,
                  let: Optional[np.ndarray] = None,
                  volume_cc: float,
+                 volume_fraction: float = 100.,
                  relative_volumes: Optional[np.ndarray] = None,
                  dose_units: str = "Gy",
                  let_units: str = "keV/µm"):
@@ -407,6 +408,7 @@ class DLVH:
         self.n_voxels = size
         self.dose_units = dose_units
         self.let_units = let_units
+        self.volume_fraction = volume_fraction
 
     @staticmethod
     def _validate_array(arr: Optional[np.ndarray], label: str) -> np.ndarray:
@@ -437,13 +439,15 @@ class DLVH:
         # Invert DVH: compute D = f(V)
         dose_grid = np.interp(volume_grid, cumulative_volume[::-1], sorted_data[::-1])
 
-        centers, unique_centers =  np.unique(dose_grid, return_index=True)
-        # unique() re-sorts the centers in ascending order, necessity to restore descending order
-        unique_centers = unique_centers[::-1]
-        # Get only the volume values associated with the unique dose centers
-        filtered_volume_grid = volume_grid[unique_centers]
-        values = np.max(filtered_volume_grid[centers >= np.min(centers)]) - filtered_volume_grid[centers >= np.min(centers)]
+        # centers, unique_centers =  np.unique(dose_grid, return_index=True)
+        # # unique() re-sorts the centers in ascending order, necessity to restore descending order
+        # unique_centers = unique_centers[::-1]
+        # # Get only the volume values associated with the unique dose centers
+        # filtered_volume_grid = volume_grid[unique_centers]
+        # values = np.max(filtered_volume_grid[centers >= np.min(centers)]) - filtered_volume_grid[centers >= np.min(centers)]
 
+        centers = dose_grid[::-1]
+        values = np.max(volume_grid) - volume_grid
         edges = self._get_bin_edges(centers=centers, first_edge=0.0)
         
         return centers, values, edges
@@ -552,8 +556,6 @@ class DLVH:
                                                         volume_cc=self.volume_cc,
                                                         volume_grid=centers,
                                                         normalize=normalize)
-                # print("Volume binning, bin width")
-                # print(edges)
 
             # Bin edges provided for volume
             elif bin_edges is not None:
@@ -564,13 +566,11 @@ class DLVH:
                                                         volume_cc=self.volume_cc,
                                                         volume_grid=centers,
                                                         normalize=normalize)
-                # print("Volume binning, bin edges")
-                # print(edges)
 
             # default binning + cumulative: volume binning
             else:
                 center_step = 0.01 if normalize else 0.01 # 0.01% or 0.01 cc step
-                max_center = 100.0 if normalize else self.volume_cc
+                max_center = 100 * self.volume_fraction if normalize else self.volume_cc * self.volume_fraction
                 max_volume = max_center + center_step
                 centers = np.arange(0, max_volume, center_step) if normalize else np.arange(0, max_volume, center_step) 
                 _, values, edges = self._dose_at_volume(data=data,
@@ -601,6 +601,7 @@ class DLVH:
         mask = np.ones_like(self.dose, dtype=bool) if self.let is None else self.let >= let_threshold
         data = self.dose[mask]
         weights = (self.relw * self.volume_cc)[mask]
+        self.volume_fraction = np.sum(self.relw[mask])
 
         return self._volume_histogram(data=data, weights=weights, quantity="dose",
                                       bin_width=bin_width, bin_centers=bin_centers, 
@@ -624,6 +625,7 @@ class DLVH:
         mask = np.ones_like(self.let, dtype=bool) if self.dose is None else self.dose >= dose_threshold
         data = self.let[mask]
         weights = (self.relw * self.volume_cc)[mask]
+        self.volume_fraction = np.sum(self.relw[mask])
 
         return self._volume_histogram(data=data, weights=weights, quantity="let",
                                       bin_width=bin_width, bin_centers=bin_centers, 

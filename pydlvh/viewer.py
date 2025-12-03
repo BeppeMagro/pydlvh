@@ -36,9 +36,6 @@ class DLVHViewer:
         self._normalize2d: Optional[bool] = None
         self._slider2d: Optional[Slider] = None
 
-    # =========================================================
-    # 1D interactive DVH/LVH
-    # =========================================================
     def plot1D(self) -> None:
         """Interactive viewer with DVH (cumulative) and LVH (cumulative, absolute)."""
         self.fig, (self.ax_dvh, self.ax_lvh) = plt.subplots(1, 2, figsize=(12, 5))
@@ -166,9 +163,6 @@ class DLVHViewer:
 
         self.fig.canvas.draw_idle()
 
-    # =========================================================
-    # 2D DLVH
-    # =========================================================
     def plot2D(self, *,
                bin_width_dose: Optional[float] = 1.0,
                bin_width_let: Optional[float] = 0.1,
@@ -197,8 +191,8 @@ class DLVHViewer:
                              h2d.values.T,
                              cmap=cmap)
         ax.set_xlabel(f"Dose [{self.dlvh.dose_units}]")
-        ax.set_ylabel(f"LET [{self.dlvh.let_units}]")
-        ax.set_title("2D Dose–LET Volume Histogram")
+        ax.set_ylabel(fr"LET$_d$ [{self.dlvh.let_units}]")
+        ax.set_title(r"2D Dose–LET$_d$ Volume Histogram")
 
         if cumulative:
             ax.set_xlim(left=0)
