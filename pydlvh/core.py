@@ -494,7 +494,7 @@ class DLVH:
             raise ValueError("Unsupported aggregateby. Choose 'dose', 'let' or 'volume'.")
         volume_binning = aggregatedby == "volume" or (aggregatedby == None and cumulative)
         data_binning = aggregatedby == "dose" or aggregatedby == "let" or (aggregatedby == None and not cumulative)
-        if bin_centers and len(bin_centers) < 2:
+        if bin_centers is not None and len(bin_centers) < 2:
                 raise ValueError("At least two data_bin_centers elements are required to compute a volume histogram.")
         
         # Dose/let binning

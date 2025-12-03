@@ -91,51 +91,56 @@ def build_statistics_matrix(control_histograms, ae_histograms,
 
     return control_group, ae_group, original_stats_matrix, shape
 
-def aggregate(
-        dlvhs: Union[DLVH, List[DLVH]],
-        quantity: Optional[Literal["dvh", "lvh", "dlvh"]] = None,
-        aggregateby: Optional[Literal["volume", "dose", "let"]] = None,
-        stat: Literal["mean", "median"] = "median",
-        dose_edges: Optional[np.ndarray] = None,
-        let_edges: Optional[np.ndarray] = None,
-        volume_edges: Optional[np.ndarray] = None,
-        normalize: bool = True,
-        cumulative: bool = True,
-        dose_units: str = "Gy(RBE)",
-        let_units: str = "keV/µm"
-    ) -> Union[Histogram1D, Histogram2D]:
+def aggregate(dlvhs: Union[DLVH, List[DLVH]],
+              quantity: Optional[Literal["dvh", "lvh", "dlvh"]] = None,
+              aggregateby: Optional[Literal["volume", "dose", "let"]] = None,
+              stat: Literal["mean", "median"] = "median",
+              dose_edges: Optional[np.ndarray] = None,
+              let_edges: Optional[np.ndarray] = None,
+              volume_edges: Optional[np.ndarray] = None,
+              normalize: bool = True,
+              cumulative: bool = True,
+              dose_units: str = "Gy(RBE)",
+              let_units: str = "keV/µm") -> Union[Histogram1D, Histogram2D]:
 
-    """ Aggregate DVH/LVH/DLVH across a cohort. """
+    """Aggregate DVH/LVH/DLVH across a cohort."""
 
-    # Set default quantity
-    if not quantity: 
-        quantity = "dlvh"
+    quantity = quantity or "dlvh"
+    if quantity not in ["dvh", "lvh", "dlvh"]:
+        raise ValueError(f"Unrecognized {quantity}. Please select 'dvh', 'lvh', or 'dlvh'.")
+    is_1D = quantity in ("dvh", "lvh")
+    is_2D = quantity == "dlvh"
 
-    aggregate_histo_1D = True if (quantity == "dvh" or quantity == "lvh") else False
-    aggregate_histo_2D = True if (quantity == "dlvh") else False
+    # Validate aggregateby
+    valid_aggregateby = ["dose", "let", "volume", None]
+    if aggregateby not in valid_aggregateby:
+        raise ValueError(f"Unsupported aggregateby '{aggregateby}'. Choose 'dose', 'let', or 'volume'.")
 
-    # Check quantity and aggregation modality coherence 
-    if aggregateby not in ["dose", "let", "volume", None]: 
-        raise ValueError(f"Unsupported aggregateby. Choose 'dose', 'let' or 'volume'.")
-    if aggregate_histo_1D:
-        if not aggregateby: aggregateby = "volume" # Automatically choose aggregation by volume if not specified
-        # Automatically correct possible assignment errors? 
-        if quantity == "dvh" and aggregateby == "let": aggregateby = "dose"
-        if quantity == "lvh" and aggregateby == "dose": aggregateby = "let"
-    # if aggregate_histo_2D: only aggregation by (d,l) is meaningful, any aggregateby assigment can be ignored
+    if is_1D:
+        aggregateby = aggregateby or ("volume")
+        # Correct potential mismatches
+        if quantity == "dvh" and aggregateby == "let":
+            aggregateby = "dose"
+        if quantity == "lvh" and aggregateby == "dose":
+            aggregateby = "let"
 
-    rebinned_histos, bin_edges = get_all_cohort_histograms(dlvhs=dlvhs, 
-                                                           dose_edges=dose_edges, 
-                                                           let_edges=let_edges, 
-                                                           volume_edges=volume_edges,
-                                                           quantity=quantity, 
-                                                           aggregateby=aggregateby,
-                                                           cumulative=cumulative, 
-                                                           normalize=normalize)
+    # Normalize input to list of DLVHs (also for single DLVH provided)
+    dlvhs = normalize_to_list(dlvhs)
 
-    rebinned_values = [h.values for h in rebinned_histos]
-    stack = np.stack(rebinned_values, axis=0) 
+    # Get rebinned cohort histograms
+    rebinned_histos, bin_edges = get_all_cohort_histograms(
+        dlvhs=dlvhs,
+        dose_edges=dose_edges,
+        let_edges=let_edges,
+        volume_edges=volume_edges,
+        quantity=quantity,
+        aggregateby=aggregateby,
+        cumulative=cumulative,
+        normalize=normalize
+    )
 
+    # Compute statistics
+    stack = np.stack([h.values for h in rebinned_histos], axis=0)
     if stat == "mean":
         aggregate = np.mean(stack, axis=0)
         error = np.std(stack, axis=0, ddof=1)
@@ -147,26 +152,27 @@ def aggregate(
         error = None
     else:
         raise ValueError("Unsupported stat. Choose 'mean' or 'median'.")
-    
-    dose_label = f"Dose [{dose_units}]"
-    let_label = r"LET$_{d}$ " + f"[{let_units}]"
 
-    if not isinstance(dlvhs, list): print("\nWatch out! You have only passed one dlvh to be processed.n") 
-    if not quantity: print("Default quantity was not provided but inferred to be 'dlvh'.")
-    if aggregate_histo_1D:
-        label = dose_label if quantity == "dvh" else let_label
+    # Assign correct label if needed
+    dose_label = f"Dose [{dose_units}]"
+    let_label = rf"LET$_{{d}}$ [{let_units}]"
+
+    if is_1D:
+        x_label = dose_label if quantity == "dvh" else let_label
         return Histogram1D(values=aggregate, edges=bin_edges,
                            quantity=quantity, normalize=normalize,
-                           cumulative=cumulative, x_label=label,
-                           err=error, p_lo=lower_percentile, p_hi=higher_percentile, stat=stat, aggregatedby=aggregateby)
-    elif aggregate_histo_2D: 
+                           cumulative=cumulative, x_label=x_label,
+                           err=error, p_lo=lower_percentile, p_hi=higher_percentile,
+                           stat=stat, aggregatedby=aggregateby)
+    elif is_2D:
         return Histogram2D(values=aggregate,
                            dose_edges=bin_edges[0], let_edges=bin_edges[1],
                            normalize=normalize, cumulative=cumulative,
                            dose_label=dose_label, let_label=let_label,
-                           err=error, p_lo=lower_percentile, p_hi=higher_percentile, stat=stat)
-    else:
-        return None
+                           err=error, p_lo=lower_percentile, p_hi=higher_percentile,
+                           stat=stat)
+    
+    return None
 
 def aggregate_marginals(
         dlvhs: Union[DLVH, List[DLVH]],
