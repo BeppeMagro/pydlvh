@@ -331,9 +331,8 @@ class Histogram2D:
         else:
             raise ValueError("Argument 'quantity' must be either 'dose' or 'let'.")
 
-        if edges[0] > 0:
-            edges = np.insert(edges, 0, 0.0)
-            values = np.insert(values, 0, values[0])
+        # Re-append last value for visualization-only purpose (plt.step("post"))
+        values = np.append(values, values[-1])
 
         return edges, values
 

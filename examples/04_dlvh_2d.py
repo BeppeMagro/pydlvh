@@ -27,8 +27,8 @@ def main():
     h2d = dlvh.dose_let_volume_histogram(
         bin_width_dose=1.0,
         bin_width_let=0.1,
-        normalize=True,       # show as %
-        cumulative=True       # default = cumulative DLVH
+        normalize=True,
+        cumulative=True
     )
 
     # 2) Plot DLVH (with interactive isovolume slider)

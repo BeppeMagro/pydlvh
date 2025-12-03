@@ -48,9 +48,9 @@ def main():
 
     _, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
 
-    ax1.step(edges_1d[:-1], values_1d, where="post",
+    ax1.step(edges_1d, values_1d, where="post",
              color="C0", lw=2, label="DVH (1D)")
-    ax1.step(edges_marg_dose[:-1], values_marg_dose, where="post",
+    ax1.step(edges_marg_dose, values_marg_dose, where="post",
              color="C1", ls="--", lw=2, label="DVH (2D marginal)")
     ax1.set_xlabel("Dose [GyE]")
     ax1.set_ylabel("Volume [%]" if normalize else "Volume [cm³]")
@@ -64,9 +64,9 @@ def main():
     edges_1d, values_1d = lvh_1d.get_data(x="edges")
     edges_marg_let, values_marg_let = h2d.get_marginals(quantity="let")
 
-    ax2.step(edges_1d[:-1], values_1d, where="post",
+    ax2.step(edges_1d, values_1d, where="post",
              color="C0", lw=2, label="LVH (1D)")
-    ax2.step(edges_marg_let[:-1], values_marg_let, where="post",
+    ax2.step(edges_marg_let, values_marg_let, where="post",
              color="C1", ls="--", lw=2, label="LVH (2D marginal)")
     ax2.set_xlabel(r"LET$_d$ [keV/µm]")
     ax2.set_ylabel("Volume [%]" if normalize else "Volume [cm³]")
