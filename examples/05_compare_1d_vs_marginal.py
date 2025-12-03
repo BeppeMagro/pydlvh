@@ -43,7 +43,7 @@ def main():
     )
 
     # 3) DVH comparison: 1D vs marginal from 2D DLVH
-    edges_1d, values_1d = dvh_1d.get_data(x="edges")
+    edges_1d, values_1d = dvh_1d._get_data(x="edges")
     edges_marg_dose, values_marg_dose = h2d.get_marginals(quantity="dose")
 
     _, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
@@ -61,7 +61,7 @@ def main():
     ax1.legend(frameon=False)
 
     # 4) LVH comparison: 1D vs marginal from 2D DLVH
-    edges_1d, values_1d = lvh_1d.get_data(x="edges")
+    edges_1d, values_1d = lvh_1d._get_data(x="edges")
     edges_marg_let, values_marg_let = h2d.get_marginals(quantity="let")
 
     ax2.step(edges_1d, values_1d, where="post",

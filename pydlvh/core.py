@@ -35,7 +35,7 @@ class Histogram1D:
         self.aggregated = False if stat else True # Aggregation is deduced from stat declaration
         self.aggregatedby = aggregatedby
 
-    def get_data(self, *, x: Literal["edges", "centers"] = "edges") -> Tuple[np.ndarray, np.ndarray]:
+    def _get_data(self, *, x: Literal["edges", "centers"] = "edges") -> Tuple[np.ndarray, np.ndarray]:
         """Return x-axis coordinates and histogram values."""
         edges = self.edges.copy()
         values = self.values.copy()
@@ -45,6 +45,15 @@ class Histogram1D:
 
         return edges, np.append(values, values[-1])
     
+    def _get_error(self, *, error: np.ndarray) -> Optional[np.ndarray]:
+        if error is None:
+            return None
+        error = np.asarray(error, dtype=float)
+        values = self.values.copy()
+        if error.shape[0] == values.shape:
+            return error
+        return np.append(error, error[-1])
+
     def plot(self, *, ax: Optional[plt.Axes] = None,
              show_band: bool = True, band_color: str = None, **kwargs):
         """
@@ -59,7 +68,7 @@ class Histogram1D:
             _, ax = plt.subplots()
     
         # Plot Histogram1D (accounting for eventual padding)
-        edges, values = self.get_data(x="edges")
+        edges, values = self._get_data(x="edges")
 
         ax.step(edges, values, where="post", **kwargs)
         x_band = edges
@@ -71,19 +80,9 @@ class Histogram1D:
                 band_color = "gray"
             n = len(values)
     
-            def _fix_len(arr: Optional[np.ndarray]) -> Optional[np.ndarray]:
-                if arr is None:
-                    return None
-                arr = np.asarray(arr, dtype=float)
-                if arr.shape[0] == n:
-                    return arr
-                if self.cumulative and arr.shape[0] == n - 1:
-                    return np.insert(arr, 0, arr[0])
-                return None
-    
             # std band
             if self.err is not None:
-                err = _fix_len(self.err)
+                err = self._get_error(error=self.err)
                 if err is not None:
                     y_lo = values - err
                     y_hi = values + err
@@ -92,8 +91,8 @@ class Histogram1D:
     
             # percentile band
             if self.p_lo is not None and self.p_hi is not None:
-                plo = _fix_len(self.p_lo)
-                phi = _fix_len(self.p_hi)
+                plo = self._get_error(error=self.p_lo)
+                phi = self._get_error(error=self.p_hi)
                 if plo is not None and phi is not None:
                     ax.fill_between(x_band, plo, phi,
                                     step=step_kw, alpha=0.2, color=band_color)#, label="IQR")
