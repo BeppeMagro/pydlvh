@@ -18,12 +18,10 @@ def create_synthetic_patient(n_voxels=4000,
                              volume_rng=(80.0, 120.0)):
     """
         Create synthetic dose, let and relative volumes distributions.
-        Dose is uniform in [0, dose_max], LET is Gaussian troncated for 
-        values >=0, the relative weights are Gaussian.
     """
 
     dose = np.random.normal(loc=mu_dose, scale=sigma_dose, size=n_voxels)
-    dose = np.clip(dose, 0, None)
+    dose = np.clip(dose, 0.0, None)
     let = np.random.normal(loc=mu_let, scale=sigma_let, size=n_voxels)
     let = np.clip(let, 0.0, None)
 
@@ -40,7 +38,7 @@ def main():
     np.random.seed(7)
 
     # 1) Create synthetic patients
-    dose_shapes = [(27, 6.0), (30, 7.0), (33, 8.0), (29, 6.5), (32, 7.5), (31, 5.0), (26, 9)]
+    dose_shapes = [(29, 6.5), (30, 7.0), (33, 8.0), (29, 6.5), (32, 7.5), (30, 5.0), (28, 6.5)]
     dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes]
 
     # 2) Median DVH (± iqr)
