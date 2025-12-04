@@ -32,7 +32,7 @@ def main():
     dvh_diff_norm = dlvh.dose_volume_histogram(cumulative=False, normalize=True)
     dvh_diff_abs  = dlvh.dose_volume_histogram(cumulative=False, normalize=False)
 
-    # 2) Build LVHs (defualt binning)
+    # # 2) Build LVHs (defualt binning)
     lvh_cum_norm  = dlvh.let_volume_histogram(cumulative=True,  normalize=True)
     lvh_cum_abs   = dlvh.let_volume_histogram(cumulative=True,  normalize=False)
     lvh_diff_norm = dlvh.let_volume_histogram(cumulative=False, normalize=True)

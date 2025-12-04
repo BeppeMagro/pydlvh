@@ -65,7 +65,7 @@ class Histogram1D:
             _, ax = plt.subplots()
     
         # Plot Histogram1D (accounting for eventual padding)
-        edges, values = self._get_data(x="edges")
+        edges, values = self._get_data()
 
         ax.step(edges, values, where="post", **kwargs)
         x_band = edges
@@ -524,6 +524,7 @@ class DLVH:
 
             else: # default binning: dose/let binning
                 edges = _auto_bins(array=data)
+                centers = self._get_bin_centers(edges=edges)
             # Compute corresponding volumes
             volumes, _ = np.histogram(data, bins=edges, weights=weights)
 
@@ -580,7 +581,7 @@ class DLVH:
                 centers, values, edges = self._dose_at_volume(data=data,
                                                               weights=weights,
                                                               volume_cc=self.volume_cc,
-                                                              volume_grid=centers,
+                                                              volume_grid=volume_centers,
                                                               normalize=normalize)
 
         x_label = f"Dose [{self.dose_units}]" if quantity == "dose" else f"LET [{self.let_units}]"
