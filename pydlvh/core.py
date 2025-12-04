@@ -11,7 +11,8 @@ from .utils import _auto_bins, _suffix_cumsum2d
 class Histogram1D:
     """Internal 1D histogram container with plotting capability."""
 
-    def __init__(self, *, values: np.ndarray, edges: np.ndarray,
+    def __init__(self, *, values: np.ndarray, 
+                 edges: np.ndarray, centers: np.ndarray,
                  quantity: str, normalize: bool, cumulative: bool,
                  x_label: Optional[str] = None, y_unit: Optional[str] = None,
                  err: Optional[np.ndarray] = None,
@@ -35,14 +36,10 @@ class Histogram1D:
         self.aggregated = False if stat else True # Aggregation is deduced from stat declaration
         self.aggregatedby = aggregatedby
 
-    def _get_data(self, *, x: Literal["edges", "centers"] = "edges") -> Tuple[np.ndarray, np.ndarray]:
+    def _get_data(self) -> Tuple[np.ndarray, np.ndarray]:
         """Return x-axis coordinates and histogram values."""
         edges = self.edges.copy()
         values = self.values.copy()
-
-        if x == "centers":
-            return 0.5 * (edges[:-1] + edges[1:]), np.append(values, values[-1])
-
         return edges, np.append(values, values[-1])
     
     def _get_error(self, *, error: np.ndarray) -> Optional[np.ndarray]:
@@ -421,7 +418,7 @@ class DLVH:
                         weights: np.ndarray,
                         volume_cc: float,
                         volume_grid: np.ndarray,
-                        normalize: Optional[bool])->Tuple[np.ndarray, np.ndarray]:
+                        normalize: Optional[bool])->Tuple[np.ndarray, np.ndarray, np.ndarray]:
         
         # Sort data and weights according to data order
         sorted_indices = np.argsort(data)
@@ -436,13 +433,6 @@ class DLVH:
 
         # Invert DVH: compute D = f(V)
         dose_grid = np.interp(volume_grid, cumulative_volume[::-1], sorted_data[::-1])
-
-        # centers, unique_centers =  np.unique(dose_grid, return_index=True)
-        # # unique() re-sorts the centers in ascending order, necessity to restore descending order
-        # unique_centers = unique_centers[::-1]
-        # # Get only the volume values associated with the unique dose centers
-        # filtered_volume_grid = volume_grid[unique_centers]
-        # values = np.max(filtered_volume_grid[centers >= np.min(centers)]) - filtered_volume_grid[centers >= np.min(centers)]
 
         centers = dose_grid[::-1]
         values = np.max(volume_grid) - volume_grid
@@ -483,6 +473,17 @@ class DLVH:
 
         return edges
 
+    def _get_bin_centers(self, *, edges: np.ndarray) -> np.ndarray:
+
+        edges = np.asarray(edges, dtype=float)
+        # Sort centers in ascending order
+        edges = np.sort(edges)
+
+        # Compute bin centers from edges
+        centers = (edges[:-1] + edges[1:]) / 2
+
+        return centers
+
     def _volume_histogram(self, *, data: np.ndarray, weights: np.ndarray,
                           quantity: str,
                           bin_centers: Optional[np.ndarray] = None,
@@ -494,6 +495,8 @@ class DLVH:
         
         if aggregatedby not in [None, "dose", "volume", "let"]:
             raise ValueError("Unsupported aggregateby. Choose 'dose', 'let' or 'volume'.")
+        if aggregatedby == "volume" and not cumulative:
+            raise ValueError(f"Unsupported sampling ({aggregatedby}) for differential DVH.")
         volume_binning = aggregatedby == "volume" or (aggregatedby == None and cumulative)
         data_binning = aggregatedby == "dose" or aggregatedby == "let" or (aggregatedby == None and not cumulative)
         if bin_centers is not None and len(bin_centers) < 2:
@@ -504,6 +507,7 @@ class DLVH:
             # Bin centers provided for dose/let
             if bin_centers is not None:
                 # Get dose/let edges
+                centers = bin_centers
                 edges = self._get_bin_edges(centers=bin_centers)
 
             # Bin width provided for dose/let  
@@ -511,10 +515,12 @@ class DLVH:
                 xmax = float(np.max(data))
                 n_bins = int(np.ceil(xmax / bin_width)) if bin_width > 0 else 1
                 edges = np.linspace(0.0, n_bins * bin_width, n_bins + 1)
+                centers = self._get_bin_centers(edges=edges)
 
             # Bin edges provided for dose/let  
             elif bin_edges is not None:
                 edges = bin_edges
+                centers = self._get_bin_centers(edges=bin_edges)
 
             else: # default binning: dose/let binning
                 edges = _auto_bins(array=data)
@@ -537,48 +543,48 @@ class DLVH:
 
             # Bin centers provided for volume
             if bin_centers is not None:
-                _, values, edges = self._dose_at_volume(data=data,
-                                                        weights=weights,
-                                                        volume_cc=self.volume_cc,
-                                                        volume_grid=bin_centers,
-                                                        normalize=normalize)
+                centers, values, edges = self._dose_at_volume(data=data,
+                                                              weights=weights,
+                                                              volume_cc=self.volume_cc,
+                                                              volume_grid=bin_centers,
+                                                              normalize=normalize)
 
             # Bin width provided for volume
             elif bin_width is not None:
                 vol_max = 100.0 if normalize else self.volume_cc
                 n_bins = int(np.ceil(vol_max / bin_width)) if bin_width > 0 else 1
                 volume_edges = np.linspace(0.0, (1+n_bins) * bin_width, n_bins + 1)
-                centers = (volume_edges[:-1] + volume_edges[1:]) / 2.0
-                _, values, edges = self._dose_at_volume(data=data,
-                                                        weights=weights,
-                                                        volume_cc=self.volume_cc,
-                                                        volume_grid=centers,
-                                                        normalize=normalize)
+                volume_centers = (volume_edges[:-1] + volume_edges[1:]) / 2.0
+                centers, values, edges = self._dose_at_volume(data=data,
+                                                              weights=weights,
+                                                              volume_cc=self.volume_cc,
+                                                              volume_grid=volume_centers,
+                                                              normalize=normalize)
 
             # Bin edges provided for volume
             elif bin_edges is not None:
                 volume_edges = bin_edges
-                centers = (volume_edges[:-1] + volume_edges[1:]) / 2.0
-                _, values, edges = self._dose_at_volume(data=data,
-                                                        weights=weights,
-                                                        volume_cc=self.volume_cc,
-                                                        volume_grid=centers,
-                                                        normalize=normalize)
+                volume_centers = (volume_edges[:-1] + volume_edges[1:]) / 2.0
+                centers, values, edges = self._dose_at_volume(data=data,
+                                                              weights=weights,
+                                                              volume_cc=self.volume_cc,
+                                                              volume_grid=volume_centers,
+                                                              normalize=normalize)
 
             # default binning + cumulative: volume binning
             else:
                 center_step = 0.01 if normalize else 0.01 # 0.01% or 0.01 cc step
                 max_center = 100 * self.volume_fraction if normalize else self.volume_cc * self.volume_fraction
-                max_volume = max_center + center_step
-                centers = np.arange(0, max_volume, center_step) if normalize else np.arange(0, max_volume, center_step) 
-                _, values, edges = self._dose_at_volume(data=data,
-                                                        weights=weights,
-                                                        volume_cc=self.volume_cc,
-                                                        volume_grid=centers,
-                                                        normalize=normalize)
+                max_volume = max_center + center_step/2
+                volume_centers = np.arange(0, max_volume, center_step) if normalize else np.arange(0, max_volume, center_step) 
+                centers, values, edges = self._dose_at_volume(data=data,
+                                                              weights=weights,
+                                                              volume_cc=self.volume_cc,
+                                                              volume_grid=centers,
+                                                              normalize=normalize)
 
         x_label = f"Dose [{self.dose_units}]" if quantity == "dose" else f"LET [{self.let_units}]"
-        return Histogram1D(values=values, edges=edges,
+        return Histogram1D(values=values, edges=edges, centers=centers,
                            quantity=quantity, normalize=normalize,
                            cumulative=cumulative, x_label=x_label, aggregatedby=aggregatedby)
 

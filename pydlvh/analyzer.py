@@ -107,7 +107,7 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
 
     quantity = quantity or "dlvh"
     if quantity not in ["dvh", "lvh", "dlvh"]:
-        raise ValueError(f"Unrecognized {quantity}. Please select 'dvh', 'lvh', or 'dlvh'.")
+        raise ValueError(f"Unrecognized quantity '{quantity}'. Please select 'dvh', 'lvh', or 'dlvh'.")
     is_1D = quantity in ("dvh", "lvh")
     is_2D = quantity == "dlvh"
 
@@ -115,14 +115,15 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
     valid_aggregateby = ["dose", "let", "volume", None]
     if aggregateby not in valid_aggregateby:
         raise ValueError(f"Unsupported aggregateby '{aggregateby}'. Choose 'dose', 'let', or 'volume'.")
+    if aggregateby == "volume" and cumulative == False:
+        raise ValueError(f"Unsupported aggregate sampling ({aggregateby}) for differential DVHs.")
     
     if is_1D:
-        # Set default aggregateby and correct potential mismatches
-        aggregateby = aggregateby or ("volume")
-        if quantity == "dvh" and aggregateby == "let":
-            aggregateby = "dose"
-        if quantity == "lvh" and aggregateby == "dose":
-            aggregateby = "let"
+        # Set default aggregateby
+        if cumulative: aggregateby = aggregateby or ("volume")
+        else: 
+            if aggregateby is None:
+                aggregateby = "dose" if quantity == "dvh" else "let"
 
         # Select edges for binning
         if aggregateby == "dose":
@@ -153,6 +154,16 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
         normalize=normalize
     )
 
+    # TODO: remove
+    for i, histo in enumerate(rebinned_histos):
+        histo.plot()
+        plt.show()
+    print(aa)
+
+    # TODO:
+    #   - volume stacking: dose interpolation (D(V))
+    #   - histogram construction based on stacking
+
     # Compute statistics
     stack = np.stack([h.values for h in rebinned_histos], axis=0)
     if stat == "mean":
@@ -169,7 +180,7 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
 
     # Assign correct label if needed
     dose_label = f"Dose [{dose_units}]"
-    let_label = rf"LET$_{{d}}$ [{let_units}]"
+    let_label = rf"LET$_d$ [{let_units}]"
 
     if is_1D:
         x_label = dose_label if quantity == "dvh" else let_label
@@ -307,9 +318,14 @@ def get_all_cohort_histograms(
             edges = DLVH._get_bin_edges(centers=centers)
         elif x_edges is not None:
             edges = x_edges
-        else:
-            arrays = [dlvh.dose if quantity == "dvh" else dlvh.let for dlvh in dlvhs]
-            edges = suggest_common_edges(arrays=arrays)    
+        # else:
+            # if aggregateby in ["dose", "let"]:
+            #     arrays = [dlvh.dose if quantity == "dvh" else dlvh.let for dlvh in dlvhs]
+            #     edges = suggest_common_edges(arrays=arrays)
+            # else: # aggregatedby == "volume"
+            #     if cumulative:
+            #         pass
+            #     else: raise ValueError(f"Unsupported sampling ({aggregateby}) for differential DVHs.")
     
     # 2D case
     else:
