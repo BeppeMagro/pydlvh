@@ -463,8 +463,11 @@ class DLVH:
 
         # Determine the last edge (based on the width of the last bin)
         if last_edge is None:
-            last_bin_width = (centers[-1] - centers[-2]) / 2
-            last_edge = centers[-1] + last_bin_width
+            if len(centers) < 2:
+                last_edge = centers[-1]
+            else:
+                last_bin_width = (centers[-1] - centers[-2]) / 2
+                last_edge = centers[-1] + last_bin_width
         else:
             if last_edge <= centers[-1]:
                 raise ValueError("last_edge must be greater than the last center value.")
