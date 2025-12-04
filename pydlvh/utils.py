@@ -158,3 +158,52 @@ def suggest_common_edges_2d(
         arrays=let_arrays, method=let_method, max_bins=max_bins_let, bin_width=let_bin_width
     )
     return d_edges, l_edges
+
+
+def _get_bin_edges(*, centers: np.ndarray,
+                   first_edge: Optional[float] = None,
+                   last_edge: Optional[float] = None) -> np.ndarray:
+
+    centers = np.asarray(centers, dtype=float)
+    # Sort centers in ascending order
+    centers = np.sort(centers)
+
+    # Compute bin edges from centers
+    edges = (centers[:-1] + centers[1:]) / 2
+
+    # Determine the first edge (based on the width of the first bin)
+    if first_edge is None:
+        first_bin_width = (centers[1] - centers[0]) / 2
+        first_edge = centers[0] - first_bin_width
+        if first_edge < 0:
+            first_edge = 0.0
+    else:
+        if first_edge > centers[0]:
+            raise ValueError("first_edge must be less than the first center value.")
+
+    # Determine the last edge (based on the width of the last bin)
+    if last_edge is None:
+        if len(centers) < 2:
+            last_edge = centers[-1]
+        else:
+            last_bin_width = (centers[-1] - centers[-2]) / 2
+            last_edge = centers[-1] + last_bin_width
+    else:
+        if last_edge <= centers[-1]:
+            raise ValueError("last_edge must be greater than the last center value.")
+        
+    edges = np.concatenate(([first_edge], edges, [last_edge]))
+
+    return edges
+
+
+def _get_bin_centers(*, edges: np.ndarray) -> np.ndarray:
+
+    edges = np.asarray(edges, dtype=float)
+    # Sort centers in ascending order
+    edges = np.sort(edges)
+
+    # Compute bin centers from edges
+    centers = (edges[:-1] + edges[1:]) / 2
+
+    return centers

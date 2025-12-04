@@ -8,7 +8,7 @@ from statsmodels.stats.multitest import multipletests
 from sklearn.metrics import roc_auc_score
 
 from pydlvh.core import Histogram1D, Histogram2D, DLVH
-from .utils import suggest_common_edges, suggest_common_edges_2d
+from .utils import suggest_common_edges, suggest_common_edges_2d, _get_bin_edges
 
 """ 
     Methods to analyze DVH/LVH/DLVH cohorts. The methods either extract the statistics
@@ -154,18 +154,12 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
         normalize=normalize
     )
 
-    # TODO: remove
-    for i, histo in enumerate(rebinned_histos):
-        histo.plot()
-        plt.show()
-    print(aa)
-
-    # TODO:
-    #   - volume stacking: dose interpolation (D(V))
-    #   - histogram construction based on stacking
-
     # Compute statistics
-    stack = np.stack([h.values for h in rebinned_histos], axis=0)
+    if is_1D and aggregateby == "volume":
+        stack = np.stack([h.centers for h in rebinned_histos], axis=0)
+    else:
+        stack = np.stack([h.values for h in rebinned_histos], axis=0)
+
     if stat == "mean":
         aggregate = np.mean(stack, axis=0)
         error = np.std(stack, axis=0, ddof=1)
@@ -178,20 +172,27 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
     else:
         raise ValueError("Unsupported stat. Choose 'mean' or 'median'.")
 
+    if aggregateby == "volume":
+        values = rebinned_histos[0].values
+        edges = _get_bin_edges(centers=aggregate)
+    else:
+        values = aggregate
+        edges = bin_edges
+
     # Assign correct label if needed
     dose_label = f"Dose [{dose_units}]"
     let_label = rf"LET$_d$ [{let_units}]"
 
     if is_1D:
         x_label = dose_label if quantity == "dvh" else let_label
-        return Histogram1D(values=aggregate, edges=bin_edges,
+        return Histogram1D(values=values, edges=edges,
                            quantity=quantity, normalize=normalize,
                            cumulative=cumulative, x_label=x_label,
                            err=error, p_lo=lower_percentile, p_hi=higher_percentile,
                            stat=stat, aggregatedby=aggregateby)
     elif is_2D:
-        return Histogram2D(values=aggregate,
-                           dose_edges=bin_edges[0], let_edges=bin_edges[1],
+        return Histogram2D(values=values,
+                           dose_edges=edges[0], let_edges=edges[1],
                            normalize=normalize, cumulative=cumulative,
                            dose_label=dose_label, let_label=let_label,
                            err=error, p_lo=lower_percentile, p_hi=higher_percentile,

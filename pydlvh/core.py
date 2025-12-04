@@ -5,16 +5,16 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 from matplotlib.colors import ListedColormap
 from typing import Tuple, List, Literal, Optional, Union
-from .utils import _auto_bins, _suffix_cumsum2d
+from .utils import _auto_bins, _suffix_cumsum2d, _get_bin_edges, _get_bin_centers
 
 
 class Histogram1D:
     """Internal 1D histogram container with plotting capability."""
 
-    def __init__(self, *, values: np.ndarray, 
-                 edges: np.ndarray, centers: np.ndarray,
+    def __init__(self, *, values: np.ndarray, edges: np.ndarray,
                  quantity: str, normalize: bool, cumulative: bool,
                  x_label: Optional[str] = None, y_unit: Optional[str] = None,
+                 centers: Optional[np.ndarray] = None,
                  err: Optional[np.ndarray] = None,
                  p_lo: Optional[np.ndarray] = None,
                  p_hi: Optional[np.ndarray] = None,
@@ -22,6 +22,7 @@ class Histogram1D:
                  aggregatedby: Optional[str] = None):
         self.values = np.asarray(values, dtype=float)
         self.edges = np.asarray(edges, dtype=float)
+        self.centers = np.asarray(centers, dtype=float)
         self.quantity = str(quantity)
         self.normalize = bool(normalize)
         self.cumulative = bool(cumulative)
@@ -436,57 +437,10 @@ class DLVH:
 
         centers = dose_grid[::-1]
         values = np.max(volume_grid) - volume_grid
-        edges = self._get_bin_edges(centers=centers, first_edge=0.0)
+        edges = _get_bin_edges(centers=centers, first_edge=0.0)
         
         return centers, values, edges
     
-    def _get_bin_edges(self, *, centers: np.ndarray,
-                       first_edge: Optional[float] = None,
-                       last_edge: Optional[float] = None) -> np.ndarray:
-
-        centers = np.asarray(centers, dtype=float)
-        # Sort centers in ascending order
-        centers = np.sort(centers)
-
-        # Compute bin edges from centers
-        edges = (centers[:-1] + centers[1:]) / 2
-
-        # Determine the first edge (based on the width of the first bin)
-        if first_edge is None:
-            first_bin_width = (centers[1] - centers[0]) / 2
-            first_edge = centers[0] - first_bin_width
-            if first_edge < 0:
-                first_edge = 0.0
-        else:
-            if first_edge > centers[0]:
-                raise ValueError("first_edge must be less than the first center value.")
-
-        # Determine the last edge (based on the width of the last bin)
-        if last_edge is None:
-            if len(centers) < 2:
-                last_edge = centers[-1]
-            else:
-                last_bin_width = (centers[-1] - centers[-2]) / 2
-                last_edge = centers[-1] + last_bin_width
-        else:
-            if last_edge <= centers[-1]:
-                raise ValueError("last_edge must be greater than the last center value.")
-            
-        edges = np.concatenate(([first_edge], edges, [last_edge]))
-
-        return edges
-
-    def _get_bin_centers(self, *, edges: np.ndarray) -> np.ndarray:
-
-        edges = np.asarray(edges, dtype=float)
-        # Sort centers in ascending order
-        edges = np.sort(edges)
-
-        # Compute bin centers from edges
-        centers = (edges[:-1] + edges[1:]) / 2
-
-        return centers
-
     def _volume_histogram(self, *, data: np.ndarray, weights: np.ndarray,
                           quantity: str,
                           bin_centers: Optional[np.ndarray] = None,
@@ -511,23 +465,23 @@ class DLVH:
             if bin_centers is not None:
                 # Get dose/let edges
                 centers = bin_centers
-                edges = self._get_bin_edges(centers=bin_centers)
+                edges = _get_bin_edges(centers=bin_centers)
 
             # Bin width provided for dose/let  
             elif bin_width is not None:
                 xmax = float(np.max(data))
                 n_bins = int(np.ceil(xmax / bin_width)) if bin_width > 0 else 1
                 edges = np.linspace(0.0, n_bins * bin_width, n_bins + 1)
-                centers = self._get_bin_centers(edges=edges)
+                centers = _get_bin_centers(edges=edges)
 
             # Bin edges provided for dose/let  
             elif bin_edges is not None:
                 edges = bin_edges
-                centers = self._get_bin_centers(edges=bin_edges)
+                centers = _get_bin_centers(edges=bin_edges)
 
             else: # default binning: dose/let binning
                 edges = _auto_bins(array=data)
-                centers = self._get_bin_centers(edges=edges)
+                centers = _get_bin_centers(edges=edges)
             # Compute corresponding volumes
             volumes, _ = np.histogram(data, bins=edges, weights=weights)
 

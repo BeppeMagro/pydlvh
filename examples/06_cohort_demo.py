@@ -38,8 +38,7 @@ def main():
     np.random.seed(7)
 
     # 1) Create synthetic patients
-    dose_shapes = [(27, 6.0), (30, 7.0), (33, 8.0), (29, 6.5), (32, 7.5)]
-    dose_shapes = [(27, 6.0), (30, 7.0), (33, 8.0)]
+    dose_shapes = [(27, 6.0), (30, 7.0), (33, 8.0), (29, 6.5), (32, 7.5), (31, 5.0), (26, 9)]
     dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes]
 
     # 2) Median DVH (± iqr)
@@ -55,13 +54,6 @@ def main():
     ax.grid(True, alpha=0.2)
     plt.tight_layout()
     plt.show()
-
-
-    """
-        The plot shows an incorrect median cumulative DVH (why??). Ideas to debug:
-            - Plot each Histo1D that was generated during binning uniforming
-    """
-
 
     # 3) Mean LVH (± iqr)
     # median_lvh = analyzer.aggregate(dlvhs=dlvhs,
