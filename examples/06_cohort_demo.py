@@ -13,7 +13,6 @@ from pydlvh.core import DLVH
 import pydlvh.analyzer as analyzer
 
 def create_synthetic_patient(n_voxels=4000,
-                             dose_max=60.0,
                              mu_dose=30.0, sigma_dose=7.0,
                              mu_let=30.0, sigma_let=10.0,
                              volume_rng=(80.0, 120.0)):
@@ -22,7 +21,9 @@ def create_synthetic_patient(n_voxels=4000,
         Dose is uniform in [0, dose_max], LET is Gaussian troncated for 
         values >=0, the relative weights are Gaussian.
     """
-    dose = np.random.uniform(0.0, dose_max, size=n_voxels)
+
+    dose = np.random.normal(loc=mu_dose, scale=sigma_dose, size=n_voxels)
+    dose = np.clip(dose, 0, None)
     let = np.random.normal(loc=mu_let, scale=sigma_let, size=n_voxels)
     let = np.clip(let, 0.0, None)
 
@@ -32,6 +33,7 @@ def create_synthetic_patient(n_voxels=4000,
     relative_volumes = relative_volumes / relative_volumes.sum()
 
     volume_cc = np.random.uniform(*volume_rng)
+
     return DLVH(dose=dose, let=let, volume_cc=volume_cc, relative_volumes=relative_volumes)
 
 def main():
