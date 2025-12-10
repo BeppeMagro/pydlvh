@@ -69,9 +69,6 @@ def main():
     # 4) Compute statistical significance between control and AE DVHs (Mann-Whitney u-test with Bonferroni correction).
     # The default settings for DVH comparison is based on binning selected during aggregation.
     print("\nPerforming statistical test between control and AE cohorts...")
-    all_control_dlvhs, _ = analyzer.get_all_cohort_histograms(dlvhs=control_dlvhs, quantity="dvh", x_edges=volume_edges)
-    all_ae_dlvhs, _ = analyzer.get_all_cohort_histograms(dlvhs=ae_dlvhs, quantity="dvh", x_edges=volume_edges)
-
     pvalues, significance = analyzer.voxel_wise_Mann_Whitney_test(control_histograms=all_control_dlvhs, 
                                                                   ae_histograms=all_ae_dlvhs,
                                                                   volume_grid=volume_edges,

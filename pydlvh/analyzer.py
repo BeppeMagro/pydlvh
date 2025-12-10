@@ -94,7 +94,7 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
               normalize: bool = True,
               cumulative: bool = True,
               dose_units: str = "Gy(RBE)",
-              let_units: str = "keV/µm") -> Union[Histogram1D, Histogram2D], Union[Histogram1D, Histogram2D]:
+              let_units: str = "keV/µm") -> Tuple[Union[Histogram1D, Histogram2D], Union[Histogram1D, Histogram2D]]:
 
     """Aggregate DVH/LVH/DLVH across a cohort."""
 
