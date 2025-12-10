@@ -40,7 +40,7 @@ def main():
     np.random.seed(7)
 
     # 1) Create synthetic control and ae cohorts
-    dose_shapes = [(29, 1.8), (30, 1.7), (33, 2.5), (32, 2.2), (33, 0.5)]
+    dose_shapes = [(35, 1.8), (30, 1.7), (37, 2.5), (32, 2.2), (33, 0.5)]
     control_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Control group
     dose_shapes = [(25, 0.5), (27, 2.0), (30, 1.3), (29, 2.3), (28, 1.4)]
     ae_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Adverse event (AE) group
@@ -70,27 +70,20 @@ def main():
     # 4) Compute statistical significance between control and AE DVHs (Mann-Whitney u-test with Bonferroni correction).
     # The default settings for DVH comparison is based on binning selected during aggregation.
     print("\nPerforming statistical test between control and AE cohorts...")
-    pvalues, significance = analyzer.voxel_wise_Mann_Whitney_test(control_histograms=all_control_dlvhs, 
-                                                                  ae_histograms=all_ae_dlvhs,
-                                                                  volume_grid=volume_edges,
-                                                                  alpha=0.05)#,
-                                                                #   correction="fdr_bh")
-
-    #####################################
-    volume_centers = _get_bin_centers(edges=volume_edges)
-    for histo in all_ae_dlvhs:
-        centers = histo.centers[(volume_centers == volume_centers.astype(int))]
-        print(centers)
-    
-    #####################################
+    pvalues, significance = analyzer.voxel_wise_Wilcoxon_test(control_histograms=all_control_dlvhs, 
+                                                              ae_histograms=all_ae_dlvhs,
+                                                              volume_grid=volume_edges,
+                                                              alpha=0.05)#,
+                                                            #   correction="fdr_bh")
 
     # Print significant Dx%
-    # if np.any(significance):
-    #     volume_centers = _get_bin_centers(edges=volume_edges)
-    #     maskedvolumes = volume_centers[(significance) & (volume_centers == volume_centers.astype(int))] # Filter on significance + int volumes
-    #     maskedpvalues = pvalues[(significance) & (volume_centers == volume_centers.astype(int))]
-    #     for volume, pvalue in zip(maskedvolumes, maskedpvalues):
-    #         print(f"D{volume:.0f}: p-value={pvalue:.2f}") # Statistical difference observed (alpha<0.05)
+    if np.any(significance):
+        print(r"\nWilcoxon significant p-values ($\alpha$=0.05)")
+        volume_centers = _get_bin_centers(edges=volume_edges)
+        maskedvolumes = volume_centers[(significance) & (volume_centers == volume_centers.astype(int))] # Filter on significance + int volumes
+        maskedpvalues = pvalues[(significance) & (volume_centers == volume_centers.astype(int))]
+        for volume, pvalue in zip(maskedvolumes, maskedpvalues):
+            print(f"D{volume:.0f}: p-value={pvalue:.2f}") # Statistical difference observed (alpha<0.05)
 
     # 6) Plot median DVHs
     _, ax = plt.subplots(1, 1, figsize=(9, 6.5))
