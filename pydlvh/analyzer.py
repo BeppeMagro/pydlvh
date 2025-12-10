@@ -57,8 +57,8 @@ def build_statistics_matrix(control_histograms, ae_histograms,
         if is_aggregated:
             if reference_histogram.aggregatedby == "volume":
                 # Invert histograms and stack
-                control_group = np.stack([DLVH._dose_at_volume(histo, volume_grid=volume_grid) for histo in control_histograms])
-                ae_group = np.stack([DLVH._dose_at_volume(histo, volume_grid=volume_grid) for histo in ae_histograms])
+                control_group = np.stack([histo.centers for histo in control_histograms])
+                ae_group = np.stack([histo.centers for histo in ae_histograms])
             elif reference_histogram.aggregatedby in ["dose", "let"]:
                 # Just stack histograms
                 control_group = np.stack([histo.values for histo in control_histograms])
@@ -69,8 +69,8 @@ def build_statistics_matrix(control_histograms, ae_histograms,
         else:
             # Default option: assuming aggregation by volume
             # Invert histograms
-            control_group = np.stack([DLVH._dose_at_volume(histo, volume_grid=volume_grid) for histo in control_histograms])
-            ae_group = np.stack([DLVH._dose_at_volume(histo, volume_grid=volume_grid) for histo in ae_histograms])
+            control_group = np.stack([histo.centers for histo in control_histograms])
+            ae_group = np.stack([histo.centers for histo in ae_histograms])
 
         shape = (control_group.shape[1])
         original_stats_matrix = np.full(shape, fill_value, dtype=float)
