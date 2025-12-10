@@ -16,7 +16,8 @@ from .utils import suggest_common_edges, suggest_common_edges_2d, _get_bin_edges
     possible statistical difference.
 """
         
-def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D, Histogram2D]]]):
+def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D, Histogram2D]]],
+             validate_edges: bool = False):
 
     """ Check that all the histograms belong to the same cohort. """
 
@@ -33,6 +34,12 @@ def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D,
                 if not (np.array_equal(reference_histogram.dose_edges, h.dose_edges) and
                         np.array_equal(reference_histogram.let_edges, h.let_edges)):
                     raise ValueError("All 2D histograms must have matching dose and LET edges.")
+            
+            elif isinstance(reference_histogram, Histogram1D):
+                # Validate either dose/let edges (x sampling) or volume edges (y sampling)
+                if validate_edges:
+                    if not np.array_equal(reference_histogram.edges, h.edges) or not np.array_equal(reference_histogram.values, h.values) or not np.array_equal(reference_histogram.centers, h.centers):
+                        raise ValueError("All 1D histograms must have matching edges either on the dose/let or the volumes axis.")
                     
                 # Validate quantity type
                 if reference_histogram.quantity != h.quantity:
