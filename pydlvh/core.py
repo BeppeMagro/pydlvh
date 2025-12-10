@@ -77,23 +77,32 @@ class Histogram1D:
             if not band_color:
                 band_color = "gray"
             n = len(values)
-    
+
             # std band
             if self.err is not None:
-                err = self._get_error(error=self.err)
-                if err is not None:
-                    y_lo = values - err
-                    y_hi = values + err
-                    ax.fill_between(x_band, y_lo, y_hi,
-                                    step=step_kw, alpha=0.2, color=band_color)#, label="±std")
+                if self.aggregatedby == "volume":
+                    x_lo = edges - err
+                    x_hi = edges + err
+                    ax.fill_betweenx(values, x_lo, x_hi,
+                                     alpha=0.2, color=band_color, step=step_kw)
+                else:
+                    err = self._get_error(error=self.err)
+                    if err is not None:
+                        y_lo = values - err
+                        y_hi = values + err
+                        ax.fill_between(x_band, y_lo, y_hi,
+                                        step=step_kw, alpha=0.2, color=band_color)
     
             # percentile band
             if self.p_lo is not None and self.p_hi is not None:
                 plo = self._get_error(error=self.p_lo)
                 phi = self._get_error(error=self.p_hi)
-                if plo is not None and phi is not None:
+                if self.aggregatedby == "volume":
+                    ax.fill_betweenx(values, plo, phi,
+                                     alpha=0.2, color=band_color, step=step_kw)
+                else:
                     ax.fill_between(x_band, plo, phi,
-                                    step=step_kw, alpha=0.2, color=band_color)#, label="IQR")
+                                    step=step_kw, alpha=0.2, color=band_color)
     
         # Labels
         if self.x_label:

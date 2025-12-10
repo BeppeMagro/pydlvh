@@ -319,14 +319,14 @@ def get_all_cohort_histograms(
             edges = DLVH._get_bin_edges(centers=centers)
         elif x_edges is not None:
             edges = x_edges
-        # else:
-            # if aggregateby in ["dose", "let"]:
-            #     arrays = [dlvh.dose if quantity == "dvh" else dlvh.let for dlvh in dlvhs]
-            #     edges = suggest_common_edges(arrays=arrays)
-            # else: # aggregatedby == "volume"
-            #     if cumulative:
-            #         pass
-            #     else: raise ValueError(f"Unsupported sampling ({aggregateby}) for differential DVHs.")
+        else:
+            if aggregateby in ["dose", "let"]:
+                arrays = [dlvh.dose if quantity == "dvh" else dlvh.let for dlvh in dlvhs]
+                edges = suggest_common_edges(arrays=arrays)
+            else: # aggregatedby == "volume"
+                if cumulative:
+                    pass
+                else: raise ValueError(f"Unsupported sampling ({aggregateby}) for differential DVHs.")
     
     # 2D case
     else:
