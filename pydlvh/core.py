@@ -80,13 +80,13 @@ class Histogram1D:
 
             # std band
             if self.err is not None:
+                err = self._get_error(error=self.err)
                 if self.aggregatedby == "volume":
                     x_lo = edges - err
                     x_hi = edges + err
                     ax.fill_betweenx(values, x_lo, x_hi,
                                      alpha=0.2, color=band_color, step=step_kw)
                 else:
-                    err = self._get_error(error=self.err)
                     if err is not None:
                         y_lo = values - err
                         y_hi = values + err
