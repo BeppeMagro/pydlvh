@@ -49,30 +49,28 @@ def main():
     # To ensure that both control and ae aggregates are computed with the same binning,
     # it can be manually set as below. For DVH comparison, it is chosen to consider a common volume binning
     # in order to compare Dx% values.
-    volume_edges = np.linspace(1, 99, 100) # Dx% with x in [1, 99]
+    volume_range = (0., 100.) # binning from 0 to 100 %
+    volume_step = 0.01 # bin width: 0.01 %
+    volume_edges = np.arange(volume_range[0], volume_range[-1]+volume_step, volume_step)  # Dx% with x in [0, 100]
 
     # 3) Median DVHs
     print("\nComputing median DVHs for control and AE cohorts...")
-    median_control_dvh = analyzer.aggregate(dlvhs=control_dlvhs,
-                                            stat="median",
-                                            quantity="dvh",
-                                            aggregateby="volume",
-                                            volume_edges=volume_edges)
-    median_ae_dvh = analyzer.aggregate(dlvhs=ae_dlvhs,
-                                       stat="median",
-                                       quantity="dvh",
-                                       aggregateby="volume",
-                                       volume_edges=volume_edges)
+    all_control_dlvhs, median_control_dvh = analyzer.aggregate(dlvhs=control_dlvhs,
+                                                               stat="median",
+                                                               quantity="dvh",
+                                                               aggregateby="volume",
+                                                               volume_edges=volume_edges)
+    all_ae_dlvhs, median_ae_dvh = analyzer.aggregate(dlvhs=ae_dlvhs,
+                                                     stat="median",
+                                                     quantity="dvh",
+                                                     aggregateby="volume",
+                                                     volume_edges=volume_edges)
 
-    # 5) Compute statistical significance between control and AE DVHs (Mann-Whitney u-test with Bonferroni correction).
-    # The default settings for DVH comparison evaluates different between Dx% points (volumetric points).
-    """print("\nPerforming statistical test between control and AE cohorts...")
-    all_control_dlvhs, _ = analyzer.get_all_cohort_histograms(dlvhs=control_dlvhs, quantity="dvh", volume_edges=volume_edges)
-    all_ae_dlvhs, _ = analyzer.get_all_cohort_histograms(dlvhs=ae_dlvhs, quantity="dvh", volume_edges=volume_edges)
-
-    print("\n\n")
-    for d in all_control_dlvhs:
-        print(d.values)
+    # 4) Compute statistical significance between control and AE DVHs (Mann-Whitney u-test with Bonferroni correction).
+    # The default settings for DVH comparison is based on binning selected during aggregation.
+    print("\nPerforming statistical test between control and AE cohorts...")
+    all_control_dlvhs, _ = analyzer.get_all_cohort_histograms(dlvhs=control_dlvhs, quantity="dvh", x_edges=volume_edges)
+    all_ae_dlvhs, _ = analyzer.get_all_cohort_histograms(dlvhs=ae_dlvhs, quantity="dvh", x_edges=volume_edges)
 
     pvalues, significance = analyzer.voxel_wise_Mann_Whitney_test(control_histograms=all_control_dlvhs, 
                                                                   ae_histograms=all_ae_dlvhs,
@@ -92,7 +90,7 @@ def main():
     median_ae_dvh.plot(ax=ax, color="C1", label="AE", show_band=True)
     ax.set_legend(loc="best", frameon=False)
     ax.grid(alpha=0.2)
-    plt.show()"""
+    plt.show()
 
     # 5) Median DLVHs 
     # median_control_dlvh = analyzer.aggregate(dlvhs=control_dlvhs,
@@ -106,9 +104,7 @@ def main():
     #                                     dose_edges=dose_edges,
     #                                     let_edges=let_edges)
 
-    """
-       until here. :)
-    
+    """   
 
     fig, axes = plt.subplots(1, 2, figsize=(8, 4))
     median_control_dvh.plot(ax=axes[0], color="C0", label="Control", show_band=True)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Tuple, List, Literal, Optional, Union
-from scipy.stats import mannwhitneyu
+from scipy.stats import mannwhitneyu, wilcoxon
 from statsmodels.stats.multitest import multipletests
 from sklearn.metrics import roc_auc_score
 
@@ -16,8 +16,7 @@ from .utils import suggest_common_edges, suggest_common_edges_2d, _get_bin_edges
     possible statistical difference.
 """
         
-def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D, Histogram2D]]],
-             validate_edges: bool = True):
+def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D, Histogram2D]]]):
 
     """ Check that all the histograms belong to the same cohort. """
 
@@ -34,12 +33,6 @@ def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D,
                 if not (np.array_equal(reference_histogram.dose_edges, h.dose_edges) and
                         np.array_equal(reference_histogram.let_edges, h.let_edges)):
                     raise ValueError("All 2D histograms must have matching dose and LET edges.")
-            
-            elif isinstance(reference_histogram, Histogram1D):
-                # Validate either dose/let edges (x sampling) or volume edges (y sampling)
-                if validate_edges:
-                    if not np.array_equal(reference_histogram.edges, h.edges) or not np.array_equal(reference_histogram.values, h.values):
-                        raise ValueError("All 1D histograms must have matching edges either on the dose/let or the volumes axis.")
                     
                 # Validate quantity type
                 if reference_histogram.quantity != h.quantity:
@@ -101,7 +94,7 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
               normalize: bool = True,
               cumulative: bool = True,
               dose_units: str = "Gy(RBE)",
-              let_units: str = "keV/µm") -> Union[Histogram1D, Histogram2D]:
+              let_units: str = "keV/µm") -> Union[Histogram1D, Histogram2D], Union[Histogram1D, Histogram2D]:
 
     """Aggregate DVH/LVH/DLVH across a cohort."""
 
@@ -185,18 +178,18 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
 
     if is_1D:
         x_label = dose_label if quantity == "dvh" else let_label
-        return Histogram1D(values=values, edges=edges,
-                           quantity=quantity, normalize=normalize,
-                           cumulative=cumulative, x_label=x_label,
-                           err=error, p_lo=lower_percentile, p_hi=higher_percentile,
-                           stat=stat, aggregatedby=aggregateby)
+        return rebinned_histos, Histogram1D(values=values, edges=edges,
+                                            quantity=quantity, normalize=normalize,
+                                            cumulative=cumulative, x_label=x_label,
+                                            err=error, p_lo=lower_percentile, p_hi=higher_percentile,
+                                            stat=stat, aggregatedby=aggregateby)
     elif is_2D:
-        return Histogram2D(values=values,
-                           dose_edges=edges[0], let_edges=edges[1],
-                           normalize=normalize, cumulative=cumulative,
-                           dose_label=dose_label, let_label=let_label,
-                           err=error, p_lo=lower_percentile, p_hi=higher_percentile,
-                           stat=stat)
+        return rebinned_histos, Histogram2D(values=values,
+                                            dose_edges=edges[0], let_edges=edges[1],
+                                            normalize=normalize, cumulative=cumulative,
+                                            dose_label=dose_label, let_label=let_label,
+                                            err=error, p_lo=lower_percentile, p_hi=higher_percentile,
+                                            stat=stat)
     
     return None
 
