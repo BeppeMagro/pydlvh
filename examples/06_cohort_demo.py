@@ -42,31 +42,31 @@ def main():
     dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes]
 
     # 2) Median DVH (± iqr)
-    # median_dvh = analyzer.aggregate(dlvhs=dlvhs,
-    #                                 quantity="dvh",
-    #                                 stat="mean",
-    #                                 normalize=True,
-    #                                 cumulative=True)
+    median_dvh = analyzer.aggregate(dlvhs=dlvhs,
+                                    quantity="dvh",
+                                    stat="mean",
+                                    normalize=True,
+                                    cumulative=True)
 
-    # ax = median_dvh.plot(color="C0", label="Mean DVH", show_band=True)
-    # ax.legend(loc="best", frameon=False)
-    # ax.set_title("Mean DVH")
-    # ax.grid(True, alpha=0.2)
-    # plt.tight_layout()
-    # plt.show()
+    ax = median_dvh.plot(color="C0", label="Mean DVH", show_band=True)
+    ax.legend(loc="best", frameon=False)
+    ax.set_title("Mean DVH")
+    ax.grid(True, alpha=0.2)
+    plt.tight_layout()
+    plt.show()
 
-    # # 3) Mean LVH (± iqr)
-    # median_lvh = analyzer.aggregate(dlvhs=dlvhs,
-    #                                 quantity="lvh",
-    #                                 stat="median",
-    #                                 normalize=True,
-    #                                 cumulative=True)
-    # ax = median_lvh.plot(color="C1", label="Mean LVH", show_band=True)
-    # ax.legend(loc="best", frameon=False)
-    # ax.set_title("Mean LVH")
-    # ax.grid(True, alpha=0.2)
-    # plt.tight_layout()
-    # plt.show()
+    # 3) Mean LVH (± iqr)
+    median_lvh = analyzer.aggregate(dlvhs=dlvhs,
+                                    quantity="lvh",
+                                    stat="median",
+                                    normalize=True,
+                                    cumulative=True)
+    ax = median_lvh.plot(color="C1", label="Mean LVH", show_band=True)
+    ax.legend(loc="best", frameon=False)
+    ax.set_title("Mean LVH")
+    ax.grid(True, alpha=0.2)
+    plt.tight_layout()
+    plt.show()
 
     # 4) Median DLVH  (+ P25/P75)
     median_dlvh = analyzer.aggregate(dlvhs=dlvhs,
@@ -88,10 +88,7 @@ def main():
     plt.show()
 
     # 5) Check median DVH/LVH from DLVH margins 
-    dvh_from2d = analyzer.aggregate_marginals(dlvhs=dlvhs,
-                                              quantity="dose", stat="median",
-                                              normalize=True, cumulative=True)
-    ax = dvh_from2d.plot(color="C2", label="extracted DVH", show_band=True)
+    ax = median_dlvh.plot_marginals(quantity="dose", lw=2, label="extracted DVH")
     ax.legend(loc="best")
     ax.set_title("DVH from median DLVH (median + IQR)")
     ax.grid(True, alpha=0.3)

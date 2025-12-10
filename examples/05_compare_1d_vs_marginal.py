@@ -50,8 +50,7 @@ def main():
 
     ax1.step(edges_1d, values_1d, where="post",
              color="C0", lw=2, label="DVH (1D)")
-    ax1.step(edges_marg_dose, values_marg_dose, where="post",
-             color="C1", ls="--", lw=2, label="DVH (2D marginal)")
+    h2d.plot_marginals(quantity="dose", ax=ax1, color="C1", ls="--", lw=2, label="DVH (2D marginal)")
     ax1.set_xlabel("Dose [GyE]")
     ax1.set_ylabel("Volume [%]" if normalize else "Volume [cm³]")
     ax1.set_title("DVH: 1D vs 2D marginal")
@@ -62,12 +61,10 @@ def main():
 
     # 4) LVH comparison: 1D vs marginal from 2D DLVH
     edges_1d, values_1d = lvh_1d._get_data()
-    edges_marg_let, values_marg_let = h2d.get_marginals(quantity="let")
 
     ax2.step(edges_1d, values_1d, where="post",
              color="C0", lw=2, label="LVH (1D)")
-    ax2.step(edges_marg_let, values_marg_let, where="post",
-             color="C1", ls="--", lw=2, label="LVH (2D marginal)")
+    h2d.plot_marginals(quantity="let", ax=ax2, color="C1", ls="--", lw=2, label="LVH (2D marginal)")
     ax2.set_xlabel(r"LET$_d$ [keV/µm]")
     ax2.set_ylabel("Volume [%]" if normalize else "Volume [cm³]")
     ax2.set_title("LVH: 1D vs 2D marginal")

@@ -342,19 +342,21 @@ class Histogram2D:
 
         return edges, values
 
-    def plot_marginals(self, *, quantity: Literal["dose", "let"] = "dose"):
+    def plot_marginals(self, *, ax: Optional[plt.Axes] = None,
+                       quantity: Literal["dose", "let"] = "dose", **kwargs):
         """Plot DVH or LVH derived from the cumulative 2D histogram."""
         edges, values = self.get_marginals(quantity=quantity)
-        fig, ax = plt.subplots(figsize=(6, 5))
+
+        if ax is None:
+            _, ax = plt.subplots()
 
         if quantity == "dose":
-            ax.step(edges[:-1], values, where="post", color="C0", label="DVH")
             ax.set_xlabel(self.dose_label)
             ax.set_title("DVH from 2D cumulative")
         else:
-            ax.step(edges[:-1], values, where="post", color="C1", label="LVH")
             ax.set_xlabel(self.let_label)
             ax.set_title("LVH from 2D cumulative")
+        ax.step(edges, values, where="post", **kwargs)
 
         ax.set_ylabel("Volume [%]" if self.normalize else "Volume [cm³]")
         ax.set_xlim(left=0)

@@ -220,14 +220,14 @@ def aggregate_marginals(
         aggregated_histo = aggregate(dlvhs=dlvhs, stat=stat, normalize=normalize, cumulative=cumulative)
 
     edges, values = aggregated_histo.get_marginals(quantity=quantity)
-    if not units: units = "Gy[RBE]" if quantity == "dose" else "keV/µm"
+    if not units: units = "Gy[RBE]" if quantity == "dose" else f"keV/$\mu$m"
     label = f"{quantity} [{units}]"
     return Histogram1D(values=values, edges=edges,
                        quantity=quantity, normalize=normalize,
                        cumulative=cumulative, x_label=label,
-                       err=aggregated_histo.err[:, 0] if stat == "mean" and aggregated_histo.err is not None and quantity == "dose" else None,
-                       p_lo=aggregated_histo.p_lo[:, 0] if stat == "median" and aggregated_histo.p_lo is not None and quantity == "dose" else None,
-                       p_hi=aggregated_histo.p_hi[:, 0] if stat == "median" and aggregated_histo.p_hi is not None and quantity == "dose" else None)
+                       err=aggregated_histo.err[:, 0] if stat == "mean" and aggregated_histo.err is not None else None,
+                       p_lo=aggregated_histo.p_lo[:, 0] if stat == "median" and aggregated_histo.p_lo is not None else None,
+                       p_hi=aggregated_histo.p_hi[:, 0] if stat == "median" and aggregated_histo.p_hi is not None else None)
 
 def normalize_to_list(x):
     if x is None:
