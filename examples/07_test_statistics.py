@@ -76,13 +76,21 @@ def main():
                                                                   alpha=0.05)#,
                                                                 #   correction="fdr_bh")
 
+    #####################################
+    volume_centers = _get_bin_centers(edges=volume_edges)
+    for histo in all_ae_dlvhs:
+        centers = histo.centers[(volume_centers == volume_centers.astype(int))]
+        print(centers)
+    
+    #####################################
+
     # Print significant Dx%
-    if np.any(significance):
-        volume_centers = _get_bin_centers(edges=volume_edges)
-        maskedvolumes = volume_centers[(significance) & (volume_centers == volume_centers.astype(int))] # Filter on significance + int volumes
-        maskedpvalues = pvalues[(significance) & (volume_centers == volume_centers.astype(int))]
-        for volume, pvalue in zip(maskedvolumes, maskedpvalues):
-            print(f"D{volume:.0f}: p-value={pvalue:.3f}") # Statistical difference observed (alpha<0.05)
+    # if np.any(significance):
+    #     volume_centers = _get_bin_centers(edges=volume_edges)
+    #     maskedvolumes = volume_centers[(significance) & (volume_centers == volume_centers.astype(int))] # Filter on significance + int volumes
+    #     maskedpvalues = pvalues[(significance) & (volume_centers == volume_centers.astype(int))]
+    #     for volume, pvalue in zip(maskedvolumes, maskedpvalues):
+    #         print(f"D{volume:.0f}: p-value={pvalue:.2f}") # Statistical difference observed (alpha<0.05)
 
     # 6) Plot median DVHs
     _, ax = plt.subplots(1, 1, figsize=(9, 6.5))

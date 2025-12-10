@@ -52,7 +52,7 @@ def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D,
 
 def build_statistics_matrix(control_histograms, ae_histograms,
                             fill_value: float = 1.0,
-                            test: str = "Mann-Whitney",
+                            test: str = ["Mann-Whitney", "Wilcoxon"],
                             volume_grid: np.ndarray = np.linspace(0, 100, 101)) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
     # Check what type of histogram was provided
@@ -374,6 +374,54 @@ def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, His
             control = control_group[:, idx[0], idx[1]]
             ae = ae_group[:, idx[0], idx[1]]
         _, p = mannwhitneyu(control, ae, alternative="two-sided")
+        original_p_values[idx] = p
+
+    original_p_values = original_p_values.flatten()
+
+    # Apply test correction
+    if correction:
+        reject, p_values, _, _ = multipletests(original_p_values, alpha=alpha, method=correction)
+    else:
+        reject = original_p_values < alpha
+        p_values = original_p_values
+
+    p_values = p_values.reshape(shape)
+    significance = reject.reshape(shape)
+
+    return p_values, significance
+
+def voxel_wise_Wilcoxon_test(control_histograms: List[Union[Histogram1D, Histogram2D]],
+                             ae_histograms: List[Union[Histogram1D, Histogram2D]], 
+                             volume_grid: np.ndarray = np.linspace(0, 100, 101), # Volume grid for Mann-Whitney testing on Histogram1D (testing Dx%)
+                             alpha: float = 0.05,
+                             correction: Optional[Literal["holm", "fdr_bh"]] = None) -> Tuple[np.ndarray, np.ndarray]:
+    
+    """ Perform voxel-wise Wilcoxon test between control and ae groups. """
+
+    validate([*control_histograms, *ae_histograms])
+
+    # Check what type of histogram was provided
+    reference_histogram = control_histograms[0]
+    histo_type = type(reference_histogram) 
+    control_group, ae_group, original_p_values, shape = build_statistics_matrix(control_histograms,
+                                                                                ae_histograms, 
+                                                                                fill_value=1.0,
+                                                                                test="Wilcoxon",
+                                                                                volume_grid=volume_grid)
+
+    # Perform Mann-Whitney u test
+    for idx in np.ndindex(shape):
+        if histo_type == Histogram1D:
+            control = control_group[:, idx[0]]
+            ae = ae_group[:, idx[0]]
+        else: # Histogram2D
+            control = control_group[:, idx[0], idx[1]]
+            ae = ae_group[:, idx[0], idx[1]]
+            if np.all(control == ae):
+                p = 1.0
+            else:
+                _, p = wilcoxon(control, ae, alternative="two-sided")
+        _, p = wilcoxon(control, ae, alternative="two-sided")
         original_p_values[idx] = p
 
     original_p_values = original_p_values.flatten()
