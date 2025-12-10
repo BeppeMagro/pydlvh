@@ -167,7 +167,7 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
 
     if aggregateby == "volume":
         values = rebinned_histos[0].values
-        edges = _get_bin_edges(centers=aggregate)
+        edges = _get_bin_edges(centers=aggregate, first_edge=0.0)
     else:
         values = aggregate
         edges = bin_edges

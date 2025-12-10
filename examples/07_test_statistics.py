@@ -11,10 +11,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 import numpy as np
 import matplotlib.pyplot as plt
 from pydlvh.core import DLVH
+from pydlvh.utils import _get_bin_centers
 import pydlvh.analyzer as analyzer
 
 def create_synthetic_patient(n_voxels=4000,
-                             dose_max=60.0,
                              mu_dose=30.0, sigma_dose=7.0,
                              mu_let=30.0, sigma_let=10.0,
                              volume_rng=(80.0, 120.0)):
@@ -23,7 +23,8 @@ def create_synthetic_patient(n_voxels=4000,
         Dose is uniform in [0, dose_max], LET is Gaussian troncated for 
         values >=0, the relative weights are Gaussian.
     """
-    dose = np.random.uniform(0.0, dose_max, size=n_voxels)
+    dose = np.random.normal(loc=mu_dose, scale=sigma_dose, size=n_voxels)
+    dose = np.clip(dose, 0.0, None)
     let = np.random.normal(loc=mu_let, scale=sigma_let, size=n_voxels)
     let = np.clip(let, 0.0, None)
 
@@ -39,9 +40,9 @@ def main():
     np.random.seed(7)
 
     # 1) Create synthetic control and ae cohorts
-    dose_shapes = [(50, 0.8), (48, 1.7), (48, 2.5), (52, 2.2), (54, 1.5)]
+    dose_shapes = [(29, 1.8), (30, 1.7), (33, 2.5), (32, 2.2), (33, 0.5)]
     control_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Control group
-    dose_shapes = [(27, 0.5), (26, 2.0), (30, 1.3), (29, 2.3), (28, 1.4)]
+    dose_shapes = [(25, 0.5), (27, 2.0), (30, 1.3), (29, 2.3), (28, 1.4)]
     ae_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Adverse event (AE) group
     all_dlvhs = control_dlvhs + ae_dlvhs
 
@@ -50,8 +51,8 @@ def main():
     # it can be manually set as below. For DVH comparison, it is chosen to consider a common volume binning
     # in order to compare Dx% values.
     volume_range = (0., 100.) # binning from 0 to 100 %
-    volume_step = 0.01 # bin width: 0.01 %
-    volume_edges = np.arange(volume_range[0], volume_range[-1]+volume_step, volume_step)  # Dx% with x in [0, 100]
+    volume_step = 0.01 # bin width: 1 %
+    volume_edges = np.arange(volume_range[0]+volume_step/2, volume_range[-1]+2*volume_step, volume_step)  # Dx% with x in [0, 100]
 
     # 3) Median DVHs
     print("\nComputing median DVHs for control and AE cohorts...")
@@ -72,20 +73,22 @@ def main():
     pvalues, significance = analyzer.voxel_wise_Mann_Whitney_test(control_histograms=all_control_dlvhs, 
                                                                   ae_histograms=all_ae_dlvhs,
                                                                   volume_grid=volume_edges,
-                                                                  alpha=0.05,
-                                                                  correction="fdr_bh")
+                                                                  alpha=0.05)#,
+                                                                #   correction="fdr_bh")
+
     # Print significant Dx%
     if np.any(significance):
-        maskedvolumes = volume_edges[significance]
-        print("\nSignificant difference for volumes:", maskedvolumes)
-        print("p-values:", pvalues[significance])
+        volume_centers = _get_bin_centers(edges=volume_edges)
+        maskedvolumes = volume_centers[(significance) & (volume_centers == volume_centers.astype(int))] # Filter on significance + int volumes
+        maskedpvalues = pvalues[(significance) & (volume_centers == volume_centers.astype(int))]
+        for volume, pvalue in zip(maskedvolumes, maskedpvalues):
+            print(f"D{volume:.0f}: p-value={pvalue:.3f}") # Statistical difference observed (alpha<0.05)
 
-    
     # 6) Plot median DVHs
     _, ax = plt.subplots(1, 1, figsize=(9, 6.5))
-    median_control_dvh.plot(ax=ax, color="C0", label="Control", show_band=True)
-    median_ae_dvh.plot(ax=ax, color="C1", label="AE", show_band=True)
-    ax.set_legend(loc="best", frameon=False)
+    median_control_dvh.plot(ax=ax, color="C0", label="Control", show_band=True, band_color="C0")
+    median_ae_dvh.plot(ax=ax, color="C1", label="AE", show_band=True, band_color="C1")
+    ax.legend(loc="best", frameon=False)
     ax.grid(alpha=0.2)
     plt.show()
 
