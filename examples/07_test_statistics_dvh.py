@@ -48,7 +48,6 @@ def main():
                    (31, 2.2), (32, 0.5), (27, 1.4), (32, 1.8), (31, 1.7), (30, 2.5), (30, 2.2), (32, 0.5),
                    (28, 1.4), (26, 1.8), (27, 1.7), (29, 2.5), (28, 2.2), (30, 0.5), (31, 1.3), (28, 2.3)]
     ae_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Adverse event (AE) group
-    all_dlvhs = control_dlvhs + ae_dlvhs
 
     # 2) Set uniform binning
     # To ensure that both control and ae aggregates are computed with the same binning,

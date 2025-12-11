@@ -48,13 +48,8 @@ def main():
                    (31, 2.2), (32, 0.5), (27, 1.4), (32, 1.8), (31, 1.7), (30, 2.5), (30, 2.2), (32, 0.5),
                    (28, 1.4), (26, 1.8), (27, 1.7), (29, 2.5), (28, 2.2), (30, 0.5), (31, 1.3), (28, 2.3)]
     ae_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Adverse event (AE) group
-    all_dlvhs = control_dlvhs + ae_dlvhs
 
-    # 2) Set uniform binning
-    # To ensure that both control and ae aggregates are computed with the same binning,
-    # it can be manually set as below. 
-
-    # 3) Median DLVHs
+    # 2) Median DLVHs
     all_control_dlvhs, median_control_dlvh = analyzer.aggregate(dlvhs=control_dlvhs,
                                                                 stat="median",
                                                                 quantity="dlvh")
@@ -62,57 +57,20 @@ def main():
                                                       stat="median",
                                                       quantity="dlvh")
 
-    # 4) Compute statistical significance between control and AE DLVHs (Mann-Whitney u-test).
+    # 3) Compute statistical significance between control and AE DLVHs (Mann-Whitney u-test).
     alpha = 0.05
     pvalues, significance = analyzer.voxel_wise_Mann_Whitney_test(control_histograms=all_control_dlvhs, 
                                                                   ae_histograms=all_ae_dlvhs,
                                                                   alpha=alpha,
                                                                   correction="fdr_bh")
+    
+    # TODO: auc score
 
-    # 5) Plot median DVHs
+    # 4) Plot median DLVHs
     _, ax = plt.subplots(1, 2, figsize=(9, 6.5))
-    median_control_dlvh.plot(ax=ax[0], color="C0", label="Control", show_band=True, band_color="C0")
-    median_ae_dlvh.plot(ax=ax[1], color="C1", label="AE", show_band=True, band_color="C1")
+    median_control_dlvh.plot(ax=ax[0])
+    median_ae_dlvh.plot(ax=ax[1])
     plt.show()
-
-    # 6) Median DLVHs 
-    # all_control_dlvhs, median_control_dvh 
-    # median_control_dlvh = analyzer.aggregate(dlvhs=control_dlvhs,
-    #                                          stat="median",
-    #                                          quantity="dlvh",
-    #                                          dose_edges=dose_edges,
-    #                                          let_edges=let_edges)
-    # median_ae_dlvh = analyzer.aggregate(dlvhs=ae_dlvhs,
-    #                                     stat="median",
-    #                                     quantity="dlvh",
-    #                                     dose_edges=dose_edges,
-    #                                     let_edges=let_edges)
-
-    """   
-
-    fig, axes = plt.subplots(1, 2, figsize=(8, 4))
-    median_control_dvh.plot(ax=axes[0], color="C0", label="Control", show_band=True)
-    median_ae_dvh.plot(ax=axes[1], color="C1", label="AE", show_band=True)
-    fig.suptitle("Median DVH")
-
-    # 3) Investigate for possible statistically significant difference between median control and AE DVHs (Mann-Whitney u-test)
-    # Including Bonferroni correction
-    alpha = 0.05
-    p_values, significance = analyzer.voxel_wise_Mann_Whitney_test(median_control_dvh, median_ae_dvh, alpha=alpha)#, correction="holm")
-    print(significance)
-    # Plot significant DVH points
-    # Padding
-    edges = np.insert(dose_edges, 0, 0.0)
-    values = [np.insert(histo.values, 0, histo.values[0]) for histo in [median_control_dvh, median_ae_dvh]]
-    significance = np.insert(significance, 0, False)
-    # Plot
-    for i, ax in enumerate(axes):
-        ax.scatter(edges[:-1][significance], values[i][significance], label=f"p<{alpha:.2f}", color="red")
-        ax.grid(True, alpha=0.3)
-        ax.legend(frameon=False)
-    plt.tight_layout()
-    plt.show()"""
-
 
 if __name__ == "__main__":
     main()
