@@ -72,14 +72,15 @@ def main():
 
     # 4) Compute statistical significance between control and AE DVHs (Mann-Whitney u-test).
     # The default settings for DVH comparison is based on binning selected during aggregation.
+    alpha = 0.05
     pvalues, significance = analyzer.voxel_wise_Mann_Whitney_test(control_histograms=all_control_dlvhs, 
                                                                   ae_histograms=all_ae_dlvhs,
                                                                   volume_grid=volume_edges,
-                                                                  alpha=0.05)#,
-                                                                  #   correction="fdr_bh")
+                                                                  alpha=alpha,
+                                                                  correction="fdr_bh")
     # Print significant Dx%
     if np.any(significance):
-        print(r"\nMann-Whitney U-test significant p-values (α=0.05)")
+        print(rf"\nMann-Whitney U-test significant p-values (α={alpha})")
         volume_centers = _get_bin_centers(edges=volume_edges)
         maskedvolumes = volume_centers[(significance) & (volume_centers == volume_centers.astype(int))] # Filter on significance + int volumes
         maskedpvalues = pvalues[(significance) & (volume_centers == volume_centers.astype(int))]
@@ -93,45 +94,6 @@ def main():
     ax.legend(loc="best", frameon=False)
     ax.grid(alpha=0.2)
     plt.show()
-
-    # 6) Median DLVHs 
-    # all_control_dlvhs, median_control_dvh 
-    # median_control_dlvh = analyzer.aggregate(dlvhs=control_dlvhs,
-    #                                          stat="median",
-    #                                          quantity="dlvh",
-    #                                          dose_edges=dose_edges,
-    #                                          let_edges=let_edges)
-    # median_ae_dlvh = analyzer.aggregate(dlvhs=ae_dlvhs,
-    #                                     stat="median",
-    #                                     quantity="dlvh",
-    #                                     dose_edges=dose_edges,
-    #                                     let_edges=let_edges)
-
-    """   
-
-    fig, axes = plt.subplots(1, 2, figsize=(8, 4))
-    median_control_dvh.plot(ax=axes[0], color="C0", label="Control", show_band=True)
-    median_ae_dvh.plot(ax=axes[1], color="C1", label="AE", show_band=True)
-    fig.suptitle("Median DVH")
-
-    # 3) Investigate for possible statistically significant difference between median control and AE DVHs (Mann-Whitney u-test)
-    # Including Bonferroni correction
-    alpha = 0.05
-    p_values, significance = analyzer.voxel_wise_Mann_Whitney_test(median_control_dvh, median_ae_dvh, alpha=alpha)#, correction="holm")
-    print(significance)
-    # Plot significant DVH points
-    # Padding
-    edges = np.insert(dose_edges, 0, 0.0)
-    values = [np.insert(histo.values, 0, histo.values[0]) for histo in [median_control_dvh, median_ae_dvh]]
-    significance = np.insert(significance, 0, False)
-    # Plot
-    for i, ax in enumerate(axes):
-        ax.scatter(edges[:-1][significance], values[i][significance], label=f"p<{alpha:.2f}", color="red")
-        ax.grid(True, alpha=0.3)
-        ax.legend(frameon=False)
-    plt.tight_layout()
-    plt.show()"""
-
 
 if __name__ == "__main__":
     main()

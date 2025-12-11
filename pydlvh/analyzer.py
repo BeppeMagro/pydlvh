@@ -52,8 +52,7 @@ def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D,
 
 def build_statistics_matrix(control_histograms, ae_histograms,
                             fill_value: float = 1.0,
-                            test: str = ["Mann-Whitney", "Wilcoxon"],
-                            volume_grid: np.ndarray = np.linspace(0, 100, 101)) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+                            test: str = ["Mann-Whitney", "Wilcoxon"]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
     # Check what type of histogram was provided
     reference_histogram = control_histograms[0]
@@ -347,8 +346,7 @@ def get_all_cohort_histograms(
     return rebinned_histos, edges
     
 def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, Histogram2D]],
-                                 ae_histograms: List[Union[Histogram1D, Histogram2D]], 
-                                 volume_grid: np.ndarray = np.linspace(0, 100, 101), # Volume grid for Mann-Whitney testing on Histogram1D (testing Dx%)
+                                 ae_histograms: List[Union[Histogram1D, Histogram2D]],
                                  alpha: float = 0.05,
                                  alternative: Optional[Literal["two-sided", "greater", "less"]] = "two-sided",
                                  correction: Optional[Literal["holm", "fdr_bh"]] = None) -> Tuple[np.ndarray, np.ndarray]:
@@ -363,8 +361,7 @@ def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, His
     control_group, ae_group, original_p_values, shape = build_statistics_matrix(control_histograms,
                                                                                 ae_histograms, 
                                                                                 fill_value=1.0,
-                                                                                test="Mann-Whitney",
-                                                                                volume_grid=volume_grid)
+                                                                                test="Mann-Whitney")
 
     # Perform Mann-Whitney u test
     for idx in np.ndindex(shape):
@@ -393,7 +390,6 @@ def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, His
 
 def voxel_wise_Wilcoxon_test(control_histograms: List[Union[Histogram1D, Histogram2D]],
                              ae_histograms: List[Union[Histogram1D, Histogram2D]], 
-                             volume_grid: np.ndarray = np.linspace(0, 100, 101), # Volume grid for Mann-Whitney testing on Histogram1D (testing Dx%)
                              alpha: float = 0.05,
                              alternative: Optional[Literal["two-sided", "greater", "less"]] = "two-sided",
                              correction: Optional[Literal["holm", "fdr_bh"]] = None) -> Tuple[np.ndarray, np.ndarray]:
@@ -408,8 +404,7 @@ def voxel_wise_Wilcoxon_test(control_histograms: List[Union[Histogram1D, Histogr
     control_group, ae_group, original_p_values, shape = build_statistics_matrix(control_histograms,
                                                                                 ae_histograms, 
                                                                                 fill_value=1.0,
-                                                                                test="Wilcoxon",
-                                                                                volume_grid=volume_grid)
+                                                                                test="Wilcoxon")
 
     # Perform Mann-Whitney u test
     for idx in np.ndindex(shape):
