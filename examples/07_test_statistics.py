@@ -55,7 +55,6 @@ def main():
     volume_edges = np.arange(volume_range[0]+volume_step/2, volume_range[-1]+2*volume_step, volume_step)  # Dx% with x in [0, 100]
 
     # 3) Median DVHs
-    print("\nComputing median DVHs for control and AE cohorts...")
     all_control_dlvhs, median_control_dvh = analyzer.aggregate(dlvhs=control_dlvhs,
                                                                stat="median",
                                                                quantity="dvh",
@@ -67,18 +66,17 @@ def main():
                                                      aggregateby="volume",
                                                      volume_edges=volume_edges)
 
-    # 4) Compute statistical significance between control and AE DVHs (Mann-Whitney u-test with Bonferroni correction).
+    # 4) Compute statistical significance between control and AE DVHs (Mann-Whitney u-test).
     # The default settings for DVH comparison is based on binning selected during aggregation.
-    print("\nPerforming statistical test between control and AE cohorts...")
-    pvalues, significance = analyzer.voxel_wise_Wilcoxon_test(control_histograms=all_control_dlvhs, 
-                                                              ae_histograms=all_ae_dlvhs,
-                                                              volume_grid=volume_edges,
-                                                              alpha=0.05)#,
-                                                            #   correction="fdr_bh")
+    pvalues, significance = analyzer.voxel_wise_Mann_Whitney_test(control_histograms=all_control_dlvhs, 
+                                                                  ae_histograms=all_ae_dlvhs,
+                                                                  volume_grid=volume_edges,
+                                                                  alpha=0.05)#,
+                                                                  #   correction="fdr_bh")
 
     # Print significant Dx%
     if np.any(significance):
-        print(r"\nWilcoxon significant p-values ($\alpha$=0.05)")
+        print(r"\nMann-Whitney U-test significant p-values ($\alpha$=0.05)")
         volume_centers = _get_bin_centers(edges=volume_edges)
         maskedvolumes = volume_centers[(significance) & (volume_centers == volume_centers.astype(int))] # Filter on significance + int volumes
         maskedpvalues = pvalues[(significance) & (volume_centers == volume_centers.astype(int))]

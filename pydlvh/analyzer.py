@@ -350,6 +350,7 @@ def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, His
                                  ae_histograms: List[Union[Histogram1D, Histogram2D]], 
                                  volume_grid: np.ndarray = np.linspace(0, 100, 101), # Volume grid for Mann-Whitney testing on Histogram1D (testing Dx%)
                                  alpha: float = 0.05,
+                                 alternative: Optional[Literal["two-sided", "greater", "less"]] = "two-sided",
                                  correction: Optional[Literal["holm", "fdr_bh"]] = None) -> Tuple[np.ndarray, np.ndarray]:
     
     """ Perform voxel-wise Mann-Whitney U test between control and ae groups. """
@@ -373,7 +374,7 @@ def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, His
         else: # Histogram2D
             control = control_group[:, idx[0], idx[1]]
             ae = ae_group[:, idx[0], idx[1]]
-        _, p = mannwhitneyu(control, ae, alternative="two-sided")
+        _, p = mannwhitneyu(control, ae, alternative=alternative)
         original_p_values[idx] = p
 
     original_p_values = original_p_values.flatten()
@@ -394,6 +395,7 @@ def voxel_wise_Wilcoxon_test(control_histograms: List[Union[Histogram1D, Histogr
                              ae_histograms: List[Union[Histogram1D, Histogram2D]], 
                              volume_grid: np.ndarray = np.linspace(0, 100, 101), # Volume grid for Mann-Whitney testing on Histogram1D (testing Dx%)
                              alpha: float = 0.05,
+                             alternative: Optional[Literal["two-sided", "greater", "less"]] = "two-sided",
                              correction: Optional[Literal["holm", "fdr_bh"]] = None) -> Tuple[np.ndarray, np.ndarray]:
     
     """ Perform voxel-wise Wilcoxon test between control and ae groups. """
@@ -420,8 +422,7 @@ def voxel_wise_Wilcoxon_test(control_histograms: List[Union[Histogram1D, Histogr
             if np.all(control == ae):
                 p = 1.0
             else:
-                _, p = wilcoxon(control, ae, alternative="two-sided")
-        _, p = wilcoxon(control, ae, alternative="two-sided")
+                _, p = wilcoxon(control, ae, alternative=alternative)
         original_p_values[idx] = p
 
     original_p_values = original_p_values.flatten()
