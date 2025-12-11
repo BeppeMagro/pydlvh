@@ -40,9 +40,13 @@ def main():
     np.random.seed(7)
 
     # 1) Create synthetic control and ae cohorts
-    dose_shapes = [(35, 1.8), (30, 1.7), (37, 2.5), (32, 2.2), (33, 0.5)]
+    dose_shapes = [(31, 1.8), (30, 1.7), (33, 2.5), (32, 2.2), (33, 0.5), (33, 1.8), (31, 1.7), (34, 2.5),
+                   (33, 2.2), (34, 0.5), (33, 0.5), (32, 1.8), (31, 1.7), (31, 2.5), (33, 2.2), (35, 0.5),
+                   (29, 1.4), (36, 1.8), (34, 1.7), (35, 2.5), (34, 2.2), (32, 0.5), (28, 1.3), (31, 2.3)]
     control_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Control group
-    dose_shapes = [(25, 0.5), (27, 2.0), (30, 1.3), (29, 2.3), (28, 1.4)]
+    dose_shapes = [(25, 0.5), (27, 2.0), (30, 1.3), (29, 2.3), (28, 1.4), (29, 1.8), (30, 1.7), (29, 2.5),
+                   (31, 2.2), (32, 0.5), (27, 1.4), (32, 1.8), (31, 1.7), (30, 2.5), (30, 2.2), (32, 0.5),
+                   (28, 1.4), (26, 1.8), (27, 1.7), (29, 2.5), (28, 2.2), (30, 0.5), (31, 1.3), (28, 2.3)]
     ae_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Adverse event (AE) group
     all_dlvhs = control_dlvhs + ae_dlvhs
 
@@ -51,7 +55,7 @@ def main():
     # it can be manually set as below. For DVH comparison, it is chosen to consider a common volume binning
     # in order to compare Dx% values.
     volume_range = (0., 100.) # binning from 0 to 100 %
-    volume_step = 0.01 # bin width: 1 %
+    volume_step = 1 # bin width: 1 %
     volume_edges = np.arange(volume_range[0]+volume_step/2, volume_range[-1]+2*volume_step, volume_step)  # Dx% with x in [0, 100]
 
     # 3) Median DVHs
@@ -73,17 +77,16 @@ def main():
                                                                   volume_grid=volume_edges,
                                                                   alpha=0.05)#,
                                                                   #   correction="fdr_bh")
-
     # Print significant Dx%
     if np.any(significance):
-        print(r"\nMann-Whitney U-test significant p-values ($\alpha$=0.05)")
+        print(r"\nMann-Whitney U-test significant p-values (α=0.05)")
         volume_centers = _get_bin_centers(edges=volume_edges)
         maskedvolumes = volume_centers[(significance) & (volume_centers == volume_centers.astype(int))] # Filter on significance + int volumes
         maskedpvalues = pvalues[(significance) & (volume_centers == volume_centers.astype(int))]
         for volume, pvalue in zip(maskedvolumes, maskedpvalues):
             print(f"D{volume:.0f}: p-value={pvalue:.2f}") # Statistical difference observed (alpha<0.05)
 
-    # 6) Plot median DVHs
+    # 5) Plot median DVHs
     _, ax = plt.subplots(1, 1, figsize=(9, 6.5))
     median_control_dvh.plot(ax=ax, color="C0", label="Control", show_band=True, band_color="C0")
     median_ae_dvh.plot(ax=ax, color="C1", label="AE", show_band=True, band_color="C1")
@@ -91,7 +94,8 @@ def main():
     ax.grid(alpha=0.2)
     plt.show()
 
-    # 5) Median DLVHs 
+    # 6) Median DLVHs 
+    # all_control_dlvhs, median_control_dvh 
     # median_control_dlvh = analyzer.aggregate(dlvhs=control_dlvhs,
     #                                          stat="median",
     #                                          quantity="dlvh",
