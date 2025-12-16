@@ -1,5 +1,5 @@
 """
-07_test_statistics.py
+07b_test_statistics_dlvh.py
 ============================
 Compare two DLVH cohorts applying different statistical
 tests.

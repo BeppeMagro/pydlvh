@@ -1,7 +1,7 @@
 """
-07_test_statistics.py
+07a_test_statistics_dvh.py
 ============================
-Compare two DLVH cohorts applying different statistical
+Compare two DVH cohorts applying different statistical
 tests.
 """
 
@@ -40,10 +40,10 @@ def main():
     np.random.seed(7)
 
     # 1) Create synthetic control and ae cohorts
-    mu_dose_control, sigma_dose_control = 50.0, 5.0
+    mu_dose_control, sigma_dose_control = 51.0, 5.0
     dose_shapes = [(x, np.abs(y)) for x, y in zip(np.random.normal(loc=mu_dose_control, scale=1.0, size=100), np.random.normal(loc=sigma_dose_control, scale=1.0, size=100))]
     control_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Control group
-    mu_dose_ae, sigma_dose_ae = 52.0, 4.0
+    mu_dose_ae, sigma_dose_ae = 50.0, 5.0
     dose_shapes = [(x, np.abs(y)) for x, y in zip(np.random.normal(loc=mu_dose_ae, scale=1.0, size=100), np.random.normal(loc=sigma_dose_ae, scale=1.0, size=100))]
     ae_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Adverse event (AE) group
 
@@ -72,16 +72,16 @@ def main():
     alpha = 0.05
     pvalues, significance = analyzer.voxel_wise_Mann_Whitney_test(control_histograms=all_control_dlvhs, 
                                                                   ae_histograms=all_ae_dlvhs,
-                                                                  alpha=alpha,
-                                                                  correction="fdr_bh")
+                                                                  alpha=alpha)#,
+                                                                #   correction="fdr_bh")
     # Print significant Dx%
     if np.any(significance):
-        print(rf"\nMann-Whitney U-test significant p-values (α={alpha})")
+        print(f"\nMann-Whitney U-test significant p-values (α={alpha})")
         volume_centers = _get_bin_centers(edges=volume_edges)
         maskedvolumes = volume_centers[(significance) & (volume_centers == volume_centers.astype(int))] # Filter on significance + int volumes
         maskedpvalues = pvalues[(significance) & (volume_centers == volume_centers.astype(int))]
         for volume, pvalue in zip(maskedvolumes, maskedpvalues):
-            print(f"D{volume:.0f}: p-value={pvalue:.2f}") # Statistical difference observed (alpha<0.05)
+            print(f"D{volume:.0f}: p-value={pvalue:.4f}") # Statistical difference observed (alpha<0.05)
 
     # 5) Plot median DVHs
     _, ax = plt.subplots(1, 1, figsize=(9, 6.5))

@@ -47,7 +47,7 @@ def main():
                                                          bin_width=dose_step, aggregatedby="dose")
     dvh_volume_bin_width    = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
                                                          bin_width=volume_step, aggregatedby="volume")
-
+    
     # 2) Plot DVHs with manual binning 
     fig, axes = plt.subplots(3, 2, figsize=(9, 8), sharex=True)
     dvh_dose_centers.plot(ax=axes[0, 0], color="C0", label="Dose binning, Centers")

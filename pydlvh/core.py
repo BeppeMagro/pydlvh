@@ -532,13 +532,7 @@ class DLVH:
 
             # Bin edges provided for volume
             elif bin_edges is not None:
-                volume_edges = bin_edges
-                volume_centers = (volume_edges[:-1] + volume_edges[1:]) / 2.0
-                centers, values, edges = self._dose_at_volume(data=data,
-                                                              weights=weights,
-                                                              volume_cc=self.volume_cc,
-                                                              volume_grid=volume_centers,
-                                                              normalize=normalize)
+                raise ValueError("Volume binning providing bin edges is not available.")
 
             # default binning + cumulative: volume binning
             else:
