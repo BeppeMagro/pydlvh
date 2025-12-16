@@ -96,7 +96,7 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
               stat: Literal["mean", "median"] = "median",
               dose_edges: Optional[np.ndarray] = None,
               let_edges: Optional[np.ndarray] = None,
-              volume_edges: Optional[np.ndarray] = None,
+              centers: Optional[np.ndarray] = None,
               normalize: bool = True,
               cumulative: bool = True,
               dose_units: str = "Gy(RBE)",
@@ -129,8 +129,6 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
             x_edges = dose_edges
         elif aggregateby == "let":
             x_edges = let_edges
-        elif aggregateby == "volume":
-            x_edges = volume_edges
         else:
             x_edges = None
         y_edges = None
@@ -147,6 +145,7 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
         dlvhs=dlvhs,
         x_edges=x_edges,
         y_edges=y_edges,
+        bin_centers=centers,
         quantity=quantity,
         aggregateby=aggregateby,
         cumulative=cumulative,
@@ -295,7 +294,7 @@ def build_histogram(dlvh,
 
 def get_all_cohort_histograms(
         dlvhs: Union[DLVH, List[DLVH]],
-        centers: Optional[np.ndarray] = None, # binning
+        bin_centers: Optional[np.ndarray] = None, # binning
         x_edges: Optional[np.ndarray] = None, # binning along the first x-axis (D)
         y_edges: Optional[np.ndarray] = None, # binning along the first y-axis (L)
         quantity: Literal["dvh", "lvh", "dlvh"] = None,
@@ -311,11 +310,12 @@ def get_all_cohort_histograms(
     if quantity not in ["dvh", "lvh", "dlvh"]:
         raise ValueError(f"Unrecognized {quantity}. Please select 'dvh', 'lvh', or 'dlvh'.")
     edges = None
+    centers = None
 
     # 1D case
     if quantity in ("dvh", "lvh"):
-        if centers is not None:
-            edges = DLVH._get_bin_edges(centers=centers)
+        if bin_centers is not None:
+            centers = bin_centers
         elif x_edges is not None:
             edges = x_edges
         else:
@@ -339,7 +339,7 @@ def get_all_cohort_histograms(
         edges = (dose_edges, let_edges)
 
     rebinned_histos = [
-        build_histogram(dlvh=dlvh, quantity=quantity, edges=edges, aggregateby=aggregateby, cumulative=cumulative, normalize=normalize)
+        build_histogram(dlvh=dlvh, quantity=quantity, edges=edges, centers=centers, aggregateby=aggregateby, cumulative=cumulative, normalize=normalize)
         for dlvh in dlvhs
     ]
 
