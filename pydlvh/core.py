@@ -41,7 +41,13 @@ class Histogram1D:
         """Return x-axis coordinates and histogram values."""
         edges = self.edges.copy()
         values = self.values.copy()
-        return edges, np.append(values, values[-1])
+
+        # Padding
+        if edges[0] > 0:
+            edges = np.insert(edges, 0, 0.0)
+            values = np.insert(values, 0, values[0])
+        # return edges, np.append(values, values[-1])
+        return edges, values
     
     def _get_error(self, *, error: np.ndarray) -> Optional[np.ndarray]:
         if error is None:
@@ -448,7 +454,7 @@ class DLVH:
 
         edges = dose_grid[::-1]
         values = np.max(volume_grid) - volume_grid
-        centers = _get_bin_centers(edges=edges, first_edge=0.0)
+        centers = _get_bin_centers(edges=edges)
         
         return centers, values, edges
     
