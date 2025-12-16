@@ -446,9 +446,9 @@ class DLVH:
         # Invert DVH: compute D = f(V)
         dose_grid = np.interp(volume_grid, cumulative_volume[::-1], sorted_data[::-1])
 
-        centers = dose_grid[::-1]
+        edges = dose_grid[::-1]
         values = np.max(volume_grid) - volume_grid
-        edges = _get_bin_edges(centers=centers, first_edge=0.0)
+        centers = _get_bin_centers(edges=edges, first_edge=0.0)
         
         return centers, values, edges
     
