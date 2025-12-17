@@ -34,35 +34,35 @@ def main():
     dvh_dose_centers        = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
                                                          bin_centers=np.arange(dose_range[0]+dose_step/2, dose_range[-1]+dose_step/2, dose_step),
                                                          aggregatedby="dose")
-    # dvh_volume_centers      = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
-    #                                                      bin_centers=np.arange(volume_range[0], volume_range[-1]+volume_step/2, volume_step), 
-    #                                                      aggregatedby="volume")
-    # dvh_dose_edges          = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
-    #                                                      bin_edges=np.arange(dose_range[0], dose_range[-1]+dose_step, dose_step),
-    #                                                      aggregatedby="dose")
-    # dvh_dose_bin_width      = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
-    #                                                      bin_width=dose_step, aggregatedby="dose")
-    # dvh_volume_bin_width    = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
-    #                                                      bin_width=volume_step, aggregatedby="volume")
-    # dvh_auto                = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
-    #                                                      bin_edges=np.arange(dose_range[0], dose_range[-1]+dose_step, dose_step),
-    #                                                      aggregatedby="dose")
+    dvh_volume_centers      = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
+                                                         bin_centers=np.arange(volume_range[0], volume_range[-1]+volume_step/2, volume_step), 
+                                                         aggregatedby="volume")
+    dvh_dose_edges          = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
+                                                         bin_edges=np.arange(dose_range[0], dose_range[-1]+dose_step, dose_step),
+                                                         aggregatedby="dose")
+    dvh_dose_bin_width      = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
+                                                         bin_width=dose_step, aggregatedby="dose")
+    dvh_volume_bin_width    = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
+                                                         bin_width=volume_step, aggregatedby="volume")
+    dvh_auto                = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
+                                                         bin_edges=np.arange(dose_range[0], dose_range[-1]+dose_step, dose_step),
+                                                         aggregatedby="dose")
     
     # 2) Plot DVHs with manual binning 
     fig, axes = plt.subplots(3, 2, figsize=(9, 8), sharex=True)
     dvh_dose_centers.plot(ax=axes[0, 0], color="C0", label="Dose binning, Centers")
-    # dvh_volume_centers.plot(ax=axes[0, 1], color="C1", label="Volume binning, Centers")
-    # dvh_dose_bin_width.plot(ax=axes[1, 0], color="C4", label="Dose binning, Bin width")
-    # dvh_volume_bin_width.plot(ax=axes[1, 1], color="C5", label="Volume binning, Bin width")
-    # dvh_dose_edges.plot(ax=axes[2, 0], color="C2", label="Dose binning, Bin edges")
-    # dvh_auto.plot(ax=axes[2, 1], color="C3", label="Automatic binning")
+    dvh_volume_centers.plot(ax=axes[0, 1], color="C1", label="Volume binning, Centers")
+    dvh_dose_bin_width.plot(ax=axes[1, 0], color="C4", label="Dose binning, Bin width")
+    dvh_volume_bin_width.plot(ax=axes[1, 1], color="C5", label="Volume binning, Bin width")
+    dvh_dose_edges.plot(ax=axes[2, 0], color="C2", label="Dose binning, Bin edges")
+    dvh_auto.plot(ax=axes[2, 1], color="C3", label="Automatic binning")
 
     for ax in axes.flat:
         ax.legend(loc="best", frameon=False)
         ax.grid(True, alpha=0.2)
     fig.suptitle("DVH")
     plt.tight_layout()
-    # plt.show()
+    plt.show()
 
 
 if __name__ == "__main__":
