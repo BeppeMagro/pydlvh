@@ -29,7 +29,7 @@ def main():
     dose_range = (0., 70.) # binning from 0 to 70 Gy
     dose_step = 0.1 # bin width: 0.1 Gy
     volume_range = (0., 100.) # binning from 0 to 100 %
-    volume_step = 1.0 # bin width: 0.01 %
+    volume_step = 0.01 # bin width: 0.01 %
 
     dvh_dose_centers        = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
                                                          bin_centers=np.arange(dose_range[0]+dose_step/2, dose_range[-1]+dose_step/2, dose_step),

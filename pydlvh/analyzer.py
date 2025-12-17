@@ -50,7 +50,17 @@ def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D,
                     if reference_histogram.aggregatedby != h.aggregatedby:
                         raise ValueError("If aggregated, all 1D histograms must be aggregated by the same modality ('dose', 'let' or 'volume').")
 
+def dose_at_volume(histo: Histogram1D,
+                   volumes: np.ndarray) -> np.ndarray:
+    
+    """ Interpolate histogram at specified volumes to get dose/let at given volumes. """
+
+    doses = np.interp(volumes, histo.edges, histo.values)
+
+    return doses
+
 def build_statistics_matrix(control_histograms, ae_histograms,
+                            dose_at_volumes: Optional[np.ndarray] = None,
                             fill_value: float = 1.0,
                             test: str = ["Mann-Whitney", "Wilcoxon"]) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
@@ -61,10 +71,14 @@ def build_statistics_matrix(control_histograms, ae_histograms,
 
     if histo_type == Histogram1D: # Histogram1D
         if is_aggregated:
-            if reference_histogram.aggregatedby == "volume":
+            if dose_at_volumes is not None:
+                # Interpolate histograms at specified dose_at_volumes
+                control_group = np.stack([dose_at_volume(histo=histo, volumes=dose_at_volumes) for histo in control_histograms])
+                ae_group = np.stack([dose_at_volume(histo=histo, volumes=dose_at_volumes) for histo in ae_histograms])
+            elif reference_histogram.aggregatedby == "volume":
                 # Invert histograms and stack
-                control_group = np.stack([histo.centers for histo in control_histograms])
-                ae_group = np.stack([histo.centers for histo in ae_histograms])
+                control_group = np.stack([histo.edges for histo in control_histograms])
+                ae_group = np.stack([histo.edges for histo in ae_histograms])
             elif reference_histogram.aggregatedby in ["dose", "let"]:
                 # Just stack histograms
                 control_group = np.stack([histo.values for histo in control_histograms])
@@ -75,8 +89,8 @@ def build_statistics_matrix(control_histograms, ae_histograms,
         else:
             # Default option: assuming aggregation by volume
             # Invert histograms
-            control_group = np.stack([histo.centers for histo in control_histograms])
-            ae_group = np.stack([histo.centers for histo in ae_histograms])
+            control_group = np.stack([histo.edges for histo in control_histograms])
+            ae_group = np.stack([histo.edges for histo in ae_histograms])
 
         shape = (control_group.shape[1])
         original_stats_matrix = np.full(shape, fill_value, dtype=float)
@@ -348,6 +362,7 @@ def get_all_cohort_histograms(
 def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, Histogram2D]],
                                  ae_histograms: List[Union[Histogram1D, Histogram2D]],
                                  alpha: float = 0.05,
+                                 dose_at_volumes: Optional[np.ndarray] = None,
                                  alternative: Optional[Literal["two-sided", "greater", "less"]] = "two-sided",
                                  correction: Optional[Literal["holm", "fdr_bh"]] = None) -> Tuple[np.ndarray, np.ndarray]:
     
@@ -360,6 +375,7 @@ def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, His
     histo_type = type(reference_histogram) 
     control_group, ae_group, original_p_values, shape = build_statistics_matrix(control_histograms,
                                                                                 ae_histograms, 
+                                                                                dose_at_volumes=dose_at_volumes,
                                                                                 fill_value=1.0,
                                                                                 test="Mann-Whitney")
 
@@ -390,6 +406,7 @@ def voxel_wise_Mann_Whitney_test(control_histograms: List[Union[Histogram1D, His
 
 def voxel_wise_Wilcoxon_test(control_histograms: List[Union[Histogram1D, Histogram2D]],
                              ae_histograms: List[Union[Histogram1D, Histogram2D]], 
+                             dose_at_volumes: Optional[np.ndarray] = None,
                              alpha: float = 0.05,
                              alternative: Optional[Literal["two-sided", "greater", "less"]] = "two-sided",
                              correction: Optional[Literal["holm", "fdr_bh"]] = None) -> Tuple[np.ndarray, np.ndarray]:
@@ -403,6 +420,7 @@ def voxel_wise_Wilcoxon_test(control_histograms: List[Union[Histogram1D, Histogr
     histo_type = type(reference_histogram) 
     control_group, ae_group, original_p_values, shape = build_statistics_matrix(control_histograms,
                                                                                 ae_histograms, 
+                                                                                dose_at_volumes=dose_at_volumes,
                                                                                 fill_value=1.0,
                                                                                 test="Wilcoxon")
 
