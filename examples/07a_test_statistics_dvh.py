@@ -1,7 +1,7 @@
 """
 07a_test_statistics_dvh.py
 ============================
-Compare two DVH cohorts applying different statistical
+Compare two DVH/LVH cohorts applying different statistical
 tests.
 """
 
@@ -40,18 +40,16 @@ def main():
     np.random.seed(7)
 
     # 1) Create synthetic control and ae cohorts
-    mu_dose_control, sigma_dose_control = 51.0, 5.0
-    dose_shapes = [(x, np.abs(y)) for x, y in zip(np.random.normal(loc=mu_dose_control, scale=1.0, size=100), np.random.normal(loc=sigma_dose_control, scale=1.0, size=100))]
+    mu_dose_control, sigma_dose_control = 52.0, 5.0
+    dose_shapes = [(x, np.abs(y)) for x, y in zip(np.random.normal(loc=mu_dose_control, scale=3.0, size=100), np.random.normal(loc=sigma_dose_control, scale=1.0, size=100))]
     control_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Control group
     mu_dose_ae, sigma_dose_ae = 50.0, 5.0
-    dose_shapes = [(x, np.abs(y)) for x, y in zip(np.random.normal(loc=mu_dose_ae, scale=1.0, size=100), np.random.normal(loc=sigma_dose_ae, scale=1.0, size=100))]
+    dose_shapes = [(x, np.abs(y)) for x, y in zip(np.random.normal(loc=mu_dose_ae, scale=3.0, size=100), np.random.normal(loc=sigma_dose_ae, scale=1.0, size=100))]
     ae_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Adverse event (AE) group
 
-    # 2) Set uniform binning
-    # Control and ae aggregates are computed with the same dose binning
-    volumes = np.arange(0., 100.01, 0.01)  # D with x in [0, 100] with step 0.1%
-
-    # 3) Median DVHs
+    # 2) Median DVHs
+    # Set uniform volume binning for aggregation
+    volumes = np.arange(0., 100.01, 0.01)  # V in [0, 100] with step 0.1%
     all_control_dlvhs, median_control_dvh = analyzer.aggregate(dlvhs=control_dlvhs,
                                                                stat="median",
                                                                quantity="dvh",
@@ -62,31 +60,53 @@ def main():
                                                      quantity="dvh",
                                                      aggregateby="volume",
                                                      centers=volumes)
-
-    # 4) Compute statistical significance between control and AE DVHs (Mann-Whitney u-test).
+    
+    # 3) Compute statistical significance between control and AE DVHs (Mann-Whitney u-test).
     # The default settings for DVH comparison is based on binning selected during aggregation.
     alpha = 0.05
     volumes = np.arange(0., 101., 1.0)  # Dx% with integer x in [0, 100]
     pvalues, significance = analyzer.voxel_wise_Mann_Whitney_test(control_histograms=all_control_dlvhs, 
                                                                   ae_histograms=all_ae_dlvhs,
                                                                   dose_at_volumes=volumes,
-                                                                  alpha=alpha)#,
-                                                                #   correction="fdr_bh")
+                                                                  alpha=alpha,
+                                                                  correction="fdr_bh")
     # Print significant Dx%
     if np.any(significance):
-        print(f"\nMann-Whitney U-test significant p-values (α={alpha})")
+        print(f"\nMann-Whitney U-test significant p-values (α={alpha}, Bonferroni-Holm corrected):")
         maskedvolumes = volumes[significance]
         maskedpvalues = pvalues[significance]
-        for volume, pvalue in zip(maskedvolumes, maskedpvalues):
-            print(f"D{volume:.0f}%: p-value={pvalue:.4f}") # Statistical difference observed (alpha<0.05)
+        # for volume, pvalue in zip(maskedvolumes, maskedpvalues):
+            # print(f"D{volume:.0f}%: p-value={pvalue:.4f}") # Statistical difference observed (alpha<0.05)
 
-    # 5) Plot median DVHs
+    # 4) Plot median DVHs
     _, ax = plt.subplots(1, 1, figsize=(9, 6.5))
     median_control_dvh.plot(ax=ax, color="C0", label="Control", show_band=True, band_color="C0")
     median_ae_dvh.plot(ax=ax, color="C1", label="AE", show_band=True, band_color="C1")
     ax.legend(loc="best", frameon=False)
     ax.grid(alpha=0.2)
     plt.show()
+
+    # # 5) Mean DVHs
+    # # Set uniform dose binning for aggregation
+    # dose_edges = np.arange(0., 70.1, 0.1)  # D in [0, 70] with step 0.1 Gy
+    # _, mean_control_dvh = analyzer.aggregate(dlvhs=control_dlvhs,
+    #                                          stat="mean",
+    #                                          quantity="dvh",
+    #                                          aggregateby="dose",
+    #                                          dose_edges=dose_edges)
+    # _, mean_ae_dvh = analyzer.aggregate(dlvhs=ae_dlvhs,
+    #                                     stat="mean",
+    #                                     quantity="dvh",
+    #                                     aggregateby="dose",
+    #                                     dose_edges=dose_edges)
+    
+    # # 5) Plot mean DVHs
+    # _, ax = plt.subplots(1, 1, figsize=(9, 6.5))
+    # mean_control_dvh.plot(ax=ax, color="C2", label="Control", show_band=True, band_color="C2")
+    # mean_ae_dvh.plot(ax=ax, color="C3", label="AE", show_band=True, band_color="C3")
+    # ax.legend(loc="best", frameon=False)
+    # ax.grid(alpha=0.2)
+    # plt.show()
 
 if __name__ == "__main__":
     main()

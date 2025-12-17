@@ -129,7 +129,11 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
         raise ValueError(f"Unsupported aggregateby '{aggregateby}'. Choose 'dose', 'let', or 'volume'.")
     if aggregateby == "volume" and cumulative == False:
         raise ValueError(f"Unsupported aggregate sampling ({aggregateby}) for differential DVHs.")
-    
+    if aggregateby == "dose" and quantity == "lvh":
+        raise ValueError(f"Cannot aggregate LVHs by dose.")
+    if aggregateby == "let" and quantity == "dvh":
+        raise ValueError(f"Cannot aggregate DVHs by let.")
+
     if is_1D:
         # Set default aggregateby
         if cumulative: aggregateby = aggregateby or ("volume")

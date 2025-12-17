@@ -52,14 +52,14 @@ class Histogram1D:
 
         return edges, values
     
-    def _get_error(self, *, error: np.ndarray) -> Optional[np.ndarray]:
+    def _get_error(self, *, error: np.ndarray,
+                   values: np.ndarray) -> Optional[np.ndarray]:
         if error is None:
             return None
         
         error = np.asarray(error, dtype=float)
-        values = self.values.copy()
 
-        if error.shape[0] == values.shape:
+        if error.shape == values.shape:
             return error
         
         return np.append(error, error[-1])
@@ -88,11 +88,10 @@ class Histogram1D:
         if show_band:
             if not band_color:
                 band_color = "gray"
-            n = len(values)
 
             # std band
             if self.err is not None:
-                err = self._get_error(error=self.err)
+                err = self._get_error(error=self.err, values=values)
                 if self.aggregatedby == "volume":
                     x_lo = edges - err
                     x_hi = edges + err
@@ -107,8 +106,8 @@ class Histogram1D:
     
             # percentile band
             if self.p_lo is not None and self.p_hi is not None:
-                plo = self._get_error(error=self.p_lo)
-                phi = self._get_error(error=self.p_hi)
+                plo = self._get_error(error=self.p_lo, values=values)
+                phi = self._get_error(error=self.p_hi, values=values)
                 if self.aggregatedby == "volume":
                     ax.fill_betweenx(values, plo, phi,
                                      alpha=0.2, color=band_color, step=step_kw)
