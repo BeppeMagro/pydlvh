@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from .core import DLVH
 
 
@@ -36,6 +36,21 @@ class DLVHViewer:
         self._normalize2d: Optional[bool] = None
         self._slider2d: Optional[Slider] = None
 
+    def _get_data(self, edges: np.ndarray,
+                  values: np.ndarray,
+                  cumulative: bool) -> Tuple[np.ndarray, np.ndarray]:
+        """Return x-axis coordinates and histogram values."""
+
+        # Padding
+        if edges[0] > 0 and cumulative:
+            edges = np.insert(edges, 0, 0.0)
+            values = np.insert(values, 0, values[0])
+
+        if not cumulative: # For differential DVH, set the last value to zero for visualization purposes
+            values = np.insert(values, 0, values[0])
+
+        return edges, values
+
     def plot1D(self) -> None:
         """Interactive viewer with DVH (cumulative) and LVH (cumulative, absolute)."""
         self.fig, (self.ax_dvh, self.ax_lvh) = plt.subplots(1, 2, figsize=(12, 5))
@@ -43,13 +58,10 @@ class DLVHViewer:
 
         #  DVH cumulative [%] 
         dvh = self.dlvh.dose_volume_histogram(cumulative=True, normalize=True)
-        edges, values = dvh.edges, dvh.values
-        if edges[0] > 0:
-            edges = np.insert(edges, 0, 0.0)
-            values = np.insert(values, 0, values[0])
+        edges, values = self._get_data(edges=dvh.edges, values=dvh.values, cumulative=dvh.cumulative)
 
         (self.dvh_line,) = self.ax_dvh.step(
-            edges[:-1], values, where="post", color="C0", label="DVH\n(cumulative)")
+            edges, values, where="post", color="C0", label="DVH\n(cumulative)")
         self.ax_dvh.set_title("DVH")
         self.ax_dvh.set_xlabel(f"Dose [{self.dlvh.dose_units}]")
         self.ax_dvh.set_ylabel("Volume [%]")
@@ -62,29 +74,21 @@ class DLVHViewer:
 
         # DVH differential overlay [%] 
         dvh_diff = self.dlvh.dose_volume_histogram(cumulative=False, normalize=True)
-        edges_d, values_d = dvh_diff.edges, dvh_diff.values
-        centers = 0.5 * (edges_d[:-1] + edges_d[1:])
-        widths = np.diff(edges_d)
+        edges_d, values_d = self._get_data(edges=dvh_diff.edges, values=dvh_diff.values, cumulative=dvh_diff.cumulative)
 
         ax_dvh_diff = self.ax_dvh.twinx()
-        ax_dvh_diff.bar(
-            centers, values_d,
-            width=widths,
-            color="C0", alpha=0.3,
-            align="center", label="DVH\n(differential)")
+        ax_dvh_diff.step(edges_d, values_d, where="post",
+                         color="C0", alpha=0.3, label="DVH\n(differential)")
         ax_dvh_diff.set_ylabel("Differential volume [%]")
         ax_dvh_diff.set_ylim(bottom=0)
         self.fig.legend(loc="upper right", bbox_to_anchor=(1,1), bbox_transform=self.ax_dvh.transAxes, frameon=False)
 
         # LVH cumulative (absolute cm³) 
         lvh = self.dlvh.let_volume_histogram(cumulative=True, normalize=False)
-        self.lvh_edges, self.lvh_values = lvh.edges, lvh.values
-        if self.lvh_edges[0] > 0:
-            self.lvh_edges = np.insert(self.lvh_edges, 0, 0.0)
-            self.lvh_values = np.insert(self.lvh_values, 0, self.lvh_values[0])
+        self.lvh_edges, self.lvh_values = self._get_data(edges=lvh.edges, values=lvh.values, cumulative=lvh.cumulative)
 
         (self.lvh_line,) = self.ax_lvh.step(
-            self.lvh_edges[:-1], self.lvh_values, where="post",
+            self.lvh_edges, self.lvh_values, where="post",
             color="C1", label="LVH")
         self.ax_lvh.set_title("LVH")
         self.ax_lvh.set_xlabel(fr"LET$_d$ [{self.dlvh.let_units}]")
@@ -125,12 +129,10 @@ class DLVHViewer:
         lvh_thr = self.dlvh.let_volume_histogram(
             cumulative=True, normalize=False, dose_threshold=thr
         )
-        self.lvh_edges, self.lvh_values = lvh_thr.edges, lvh_thr.values
-        if self.lvh_edges[0] > 0:
-            self.lvh_edges = np.insert(self.lvh_edges, 0, 0.0)
-            self.lvh_values = np.insert(self.lvh_values, 0, self.lvh_values[0])
+        
+        self.lvh_edges, self.lvh_values = self._get_data(edges=lvh_thr.edges, values=lvh_thr.values, cumulative=lvh_thr.cumulative)
 
-        self.lvh_line.set_data(self.lvh_edges[:-1], self.lvh_values)
+        self.lvh_line.set_data(self.lvh_edges, self.lvh_values)
 
         self.cross.set_data([], [])
         self.annotation.set_text("")

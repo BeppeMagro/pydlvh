@@ -26,7 +26,7 @@ def main():
 
     dlvh = DLVH(dose=dose, let=let, volume_cc=volume_cc)
 
-    # 1) Create interactive viewer
+    # 1) Create interactive viewer for cumulative dvh
     viewer = DLVHViewer(dlvh)
     viewer.plot1D()
 
