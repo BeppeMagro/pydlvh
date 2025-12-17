@@ -9,6 +9,7 @@ import os, sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from pydlvh.core import DLVH
 from pydlvh.utils import _get_bin_centers
@@ -48,7 +49,7 @@ def main():
     ae_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Adverse event (AE) group
 
     # 2) Median DVHs
-    # Set uniform volume binning for aggregation
+    # Set manual uniform volume binning for aggregation
     volumes = np.arange(0., 100.01, 0.01)  # V in [0, 100] with step 0.1%
     all_control_dlvhs, median_control_dvh = analyzer.aggregate(dlvhs=control_dlvhs,
                                                                stat="median",
@@ -61,8 +62,8 @@ def main():
                                                      aggregateby="volume",
                                                      centers=volumes)
     
-    # 3) Compute statistical significance between control and AE DVHs (Mann-Whitney u-test).
-    # The default settings for DVH comparison is based on binning selected during aggregation.
+    # 3) Compute statistical significance between control and AE DVHs (Mann-Whitney u-test)
+    # The default settings for DVH comparison is based on binning selected during aggregation
     alpha = 0.05
     volumes = np.arange(0., 101., 1.0)  # Dx% with integer x in [0, 100]
     pvalues, significance = analyzer.voxel_wise_Mann_Whitney_test(control_histograms=all_control_dlvhs, 
@@ -70,13 +71,18 @@ def main():
                                                                   dose_at_volumes=volumes,
                                                                   alpha=alpha,
                                                                   correction="fdr_bh")
-    # Print significant Dx%
+    # Print (top 5 most) significant Dx%
     if np.any(significance):
-        print(f"\nMann-Whitney U-test significant p-values (α={alpha}, Bonferroni-Holm corrected):")
-        maskedvolumes = volumes[significance]
-        maskedpvalues = pvalues[significance]
-        # for volume, pvalue in zip(maskedvolumes, maskedpvalues):
-            # print(f"D{volume:.0f}%: p-value={pvalue:.4f}") # Statistical difference observed (alpha<0.05)
+        masked_volumes = volumes[significance]
+        masked_pvalues = pvalues[significance]
+        df = pd.DataFrame({
+            "Dx%": masked_volumes,
+            "p-value": masked_pvalues
+        })
+
+        df = df.sort_values("p-value").head(5)
+        print(f"\nTop 5 Mann–Whitney U-test most significant Dx% (α={alpha}, BH corrected):\n")
+        print(df.to_markdown(index=False, floatfmt=".4g"))
 
     # 4) Plot median DVHs
     _, ax = plt.subplots(1, 1, figsize=(9, 6.5))

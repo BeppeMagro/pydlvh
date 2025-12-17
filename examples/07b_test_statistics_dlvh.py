@@ -40,22 +40,27 @@ def main():
     np.random.seed(7)
 
     # 1) Create synthetic control and ae cohorts
-    dose_shapes = [(31, 1.8), (30, 1.7), (33, 2.5), (32, 2.2), (33, 0.5), (33, 1.8), (31, 1.7), (34, 2.5),
-                   (33, 2.2), (34, 0.5), (33, 0.5), (32, 1.8), (31, 1.7), (31, 2.5), (33, 2.2), (35, 0.5),
-                   (29, 1.4), (36, 1.8), (34, 1.7), (35, 2.5), (34, 2.2), (32, 0.5), (28, 1.3), (31, 2.3)]
+    mu_dose_control, sigma_dose_control = 52.0, 5.0
+    dose_shapes = [(x, np.abs(y)) for x, y in zip(np.random.normal(loc=mu_dose_control, scale=3.0, size=100), np.random.normal(loc=sigma_dose_control, scale=1.0, size=100))]
     control_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Control group
-    dose_shapes = [(25, 0.5), (27, 2.0), (30, 1.3), (29, 2.3), (28, 1.4), (29, 1.8), (30, 1.7), (29, 2.5),
-                   (31, 2.2), (32, 0.5), (27, 1.4), (32, 1.8), (31, 1.7), (30, 2.5), (30, 2.2), (32, 0.5),
-                   (28, 1.4), (26, 1.8), (27, 1.7), (29, 2.5), (28, 2.2), (30, 0.5), (31, 1.3), (28, 2.3)]
+    mu_dose_ae, sigma_dose_ae = 50.0, 5.0
+    dose_shapes = [(x, np.abs(y)) for x, y in zip(np.random.normal(loc=mu_dose_ae, scale=3.0, size=100), np.random.normal(loc=sigma_dose_ae, scale=1.0, size=100))]
     ae_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Adverse event (AE) group
 
     # 2) Median DLVHs
+    # Set manual uniform dose+let binning for aggregation
+    dose_edges = np.arange(0., 70.1, 0.1)  # D in [0, 70] with step 0.1 Gy
+    let_edges = np.arange(0., 50.1, 0.1)  # D in [0, 50] with step 0.1 keV/um
     all_control_dlvhs, median_control_dlvh = analyzer.aggregate(dlvhs=control_dlvhs,
                                                                 stat="median",
-                                                                quantity="dlvh")
+                                                                quantity="dlvh",
+                                                                dose_edges=dose_edges,
+                                                                let_edges=let_edges)
     all_ae_dlvhs, median_ae_dlvh = analyzer.aggregate(dlvhs=ae_dlvhs,
                                                       stat="median",
-                                                      quantity="dlvh")
+                                                      quantity="dlvh",
+                                                      dose_edges=dose_edges,
+                                                      let_edges=let_edges)
 
     # 3) Compute statistical significance between control and AE DLVHs (Mann-Whitney u-test).
     alpha = 0.05
@@ -63,6 +68,13 @@ def main():
                                                                   ae_histograms=all_ae_dlvhs,
                                                                   alpha=alpha,
                                                                   correction="fdr_bh")
+    # Print 5 most significant DLx%
+    if np.any(significance):
+        print(f"\nMann-Whitney U-test significant p-values (α={alpha}, Bonferroni-Holm corrected):")
+        maskedvolumes = volumes[significance]
+        maskedpvalues = pvalues[significance]
+        for volume, pvalue in zip(maskedvolumes, maskedpvalues):
+            print(f"D{volume:.0f}%: p-value={pvalue:.4f}") # Statistical difference observed (alpha<0.05)
     
     # TODO: auc score
 

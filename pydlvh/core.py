@@ -62,7 +62,7 @@ class Histogram1D:
         if error.shape == values.shape:
             return error
         
-        return np.append(error, error[-1])
+        return np.append(error, 0.0)
 
     def plot(self, *, ax: Optional[plt.Axes] = None,
              show_band: bool = True, band_color: str = None, **kwargs):
