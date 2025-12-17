@@ -346,8 +346,8 @@ class Histogram2D:
         else:
             raise ValueError("Argument 'quantity' must be either 'dose' or 'let'.")
 
-        # Re-append last value for visualization-only purpose (plt.step("post"))
-        values = np.append(values, values[-1])
+        # Append 0.0 at the end for proper step plotting
+        values = np.append(values, 0.0)
 
         return edges, values
 
