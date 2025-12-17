@@ -43,10 +43,13 @@ class Histogram1D:
         values = self.values.copy()
 
         # Padding
-        if edges[0] > 0:
+        if edges[0] > 0 and self.cumulative:
             edges = np.insert(edges, 0, 0.0)
             values = np.insert(values, 0, values[0])
-        # return edges, np.append(values, values[-1])
+
+        if not self.cumulative: # For differential DVH, set the last value to zero for visualization purposes
+            values = np.insert(values, 0, values[0])
+
         return edges, values
     
     def _get_error(self, *, error: np.ndarray) -> Optional[np.ndarray]:
@@ -73,6 +76,9 @@ class Histogram1D:
     
         # Plot Histogram1D (accounting for eventual padding)
         edges, values = self._get_data()
+
+        print("Dose edges shape: ", edges.shape)
+        print("Volumes shape: ", values.shape)
 
         ax.step(edges, values, where="post", **kwargs)
         x_band = edges
