@@ -505,6 +505,7 @@ class DLVH:
             # Cumulative distribution
             if cumulative:
                 volumes = np.cumsum(volumes[::-1])[::-1]
+                volumes = np.append(volumes, 0.0) # Append last zero bin
             # Normalization
             if normalize:
                 volumes = (volumes / self.volume_cc) * 100.0

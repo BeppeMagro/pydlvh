@@ -29,16 +29,14 @@ def main():
     dose_range = (0., 70.) # binning from 0 to 70 Gy
     dose_step = 0.1 # bin width: 0.1 Gy
     volume_range = (0., 100.) # binning from 0 to 100 %
-    volume_step = 1 # bin width: 0.01 %
+    volume_step = 1.0 # bin width: 0.01 %
 
-    print(np.arange(volume_range[0], volume_range[-1]+volume_step/2, volume_step))
-
-    # dvh_dose_centers        = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
-    #                                                      bin_centers=np.arange(dose_range[0]+dose_step/2, dose_range[-1]+dose_step/2, dose_step),
-    #                                                      aggregatedby="dose")
-    dvh_volume_centers      = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
-                                                         bin_centers=np.arange(volume_range[0], volume_range[-1]+volume_step/2, volume_step), 
-                                                         aggregatedby="volume")
+    dvh_dose_centers        = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
+                                                         bin_centers=np.arange(dose_range[0]+dose_step/2, dose_range[-1]+dose_step/2, dose_step),
+                                                         aggregatedby="dose")
+    # dvh_volume_centers      = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
+    #                                                      bin_centers=np.arange(volume_range[0], volume_range[-1]+volume_step/2, volume_step), 
+    #                                                      aggregatedby="volume")
     # dvh_dose_edges          = dlvh.dose_volume_histogram(cumulative=True, normalize=True,
     #                                                      bin_edges=np.arange(dose_range[0], dose_range[-1]+dose_step, dose_step),
     #                                                      aggregatedby="dose")
@@ -52,8 +50,8 @@ def main():
     
     # 2) Plot DVHs with manual binning 
     fig, axes = plt.subplots(3, 2, figsize=(9, 8), sharex=True)
-    # dvh_dose_centers.plot(ax=axes[0, 0], color="C0", label="Dose binning, Centers")
-    dvh_volume_centers.plot(ax=axes[0, 1], color="C1", label="Volume binning, Centers")
+    dvh_dose_centers.plot(ax=axes[0, 0], color="C0", label="Dose binning, Centers")
+    # dvh_volume_centers.plot(ax=axes[0, 1], color="C1", label="Volume binning, Centers")
     # dvh_dose_bin_width.plot(ax=axes[1, 0], color="C4", label="Dose binning, Bin width")
     # dvh_volume_bin_width.plot(ax=axes[1, 1], color="C5", label="Volume binning, Bin width")
     # dvh_dose_edges.plot(ax=axes[2, 0], color="C2", label="Dose binning, Bin edges")
@@ -64,7 +62,7 @@ def main():
         ax.grid(True, alpha=0.2)
     fig.suptitle("DVH")
     plt.tight_layout()
-    plt.show()
+    # plt.show()
 
 
 if __name__ == "__main__":
