@@ -77,9 +77,6 @@ class Histogram1D:
         # Plot Histogram1D (accounting for eventual padding)
         edges, values = self._get_data()
 
-        print("Dose edges shape: ", edges.shape)
-        print("Volumes shape: ", values.shape)
-
         ax.step(edges, values, where="post", **kwargs)
         x_band = edges
         step_kw = "post"
