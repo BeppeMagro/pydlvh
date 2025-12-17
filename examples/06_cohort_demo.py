@@ -41,14 +41,13 @@ def main():
     dose_shapes = [(29, 6.5), (30, 7.0), (33, 8.0), (29, 6.5), (32, 7.5), (30, 5.0), (28, 6.5)]
     dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes]
 
-    # 2) Median DVH (± iqr)
-    median_dvh = analyzer.aggregate(dlvhs=dlvhs,
-                                    quantity="dvh",
-                                    stat="mean",
-                                    normalize=True,
-                                    cumulative=True)
-
-    ax = median_dvh.plot(color="C0", label="Mean DVH", show_band=True)
+    # 2) Mean DVH (± iqr)
+    _, mean_dvh = analyzer.aggregate(dlvhs=dlvhs,
+                                  quantity="dvh",
+                                  stat="mean",
+                                  normalize=True,
+                                  cumulative=True)
+    ax = mean_dvh.plot(color="C0", label="Mean DVH", show_band=True)
     ax.legend(loc="best", frameon=False)
     ax.set_title("Mean DVH")
     ax.grid(True, alpha=0.2)
@@ -56,7 +55,7 @@ def main():
     plt.show()
 
     # 3) Mean LVH (± iqr)
-    median_lvh = analyzer.aggregate(dlvhs=dlvhs,
+    _, median_lvh = analyzer.aggregate(dlvhs=dlvhs,
                                     quantity="lvh",
                                     stat="median",
                                     normalize=True,
@@ -69,13 +68,13 @@ def main():
     plt.show()
 
     # 4) Median DLVH  (+ P25/P75)
-    median_dlvh = analyzer.aggregate(dlvhs=dlvhs,
-                                     quantity="dlvh",
-                                     stat="median",
-                                     normalize=True,
-                                     cumulative=True)
+    _, median_dlvh = analyzer.aggregate(dlvhs=dlvhs,
+                                        quantity="dlvh",
+                                        stat="median",
+                                        normalize=True,
+                                        cumulative=True)
     # Plot
-    fig, ax = plt.subplots(1, 3, figsize=(12, 4))
+    _, ax = plt.subplots(1, 3, figsize=(12, 4))
     median_dlvh.plot(mode="values", isovolumes=[20, 50, 80], ax=ax[0])
     ax[0].set_title("Median DLVH 2D")
     # 25th percentile

@@ -339,7 +339,7 @@ def get_all_cohort_histograms(
         edges = (dose_edges, let_edges)
 
     rebinned_histos = [
-        build_histogram(dlvh=dlvh, quantity=quantity, edges=edges, centers=centers, aggregateby=aggregateby, cumulative=cumulative, normalize=normalize)
+        build_histogram(dlvh=dlvh, quantity=quantity, edges=edges, aggregateby=aggregateby, cumulative=cumulative, normalize=normalize)
         for dlvh in dlvhs
     ]
 
