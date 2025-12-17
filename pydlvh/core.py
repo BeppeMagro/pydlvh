@@ -55,10 +55,13 @@ class Histogram1D:
     def _get_error(self, *, error: np.ndarray) -> Optional[np.ndarray]:
         if error is None:
             return None
+        
         error = np.asarray(error, dtype=float)
         values = self.values.copy()
+
         if error.shape[0] == values.shape:
             return error
+        
         return np.append(error, error[-1])
 
     def plot(self, *, ax: Optional[plt.Axes] = None,

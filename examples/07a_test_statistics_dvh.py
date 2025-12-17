@@ -48,12 +48,8 @@ def main():
     ae_dlvhs = [create_synthetic_patient(mu_dose=mu, sigma_dose=sd) for (mu, sd) in dose_shapes] # Adverse event (AE) group
 
     # 2) Set uniform binning
-    # To ensure that both control and ae aggregates are computed with the same binning,
-    # it can be manually set as below. For DVH comparison, it is chosen to consider a common volume binning
-    # in order to compare Dx% values.
-    volume_range = (0., 100.) # binning from 0 to 100 %
-    volume_step = 0.01 # bin width: 0.01 %
-    volumes = np.arange(volume_range[0], volume_range[-1]+volume_step, volume_step)  # Dx% with x in [0, 100]
+    # Control and ae aggregates are computed with the same dose binning
+    volumes = np.arange(0., 100.01, 0.01)  # D with x in [0, 100] with step 0.1%
 
     # 3) Median DVHs
     all_control_dlvhs, median_control_dvh = analyzer.aggregate(dlvhs=control_dlvhs,
@@ -70,8 +66,7 @@ def main():
     # 4) Compute statistical significance between control and AE DVHs (Mann-Whitney u-test).
     # The default settings for DVH comparison is based on binning selected during aggregation.
     alpha = 0.05
-    volume_step = 1.0 # Compare the DHVs at 1% volume intervals (Dx% with integer x in [0, 100])
-    volumes = np.arange(volume_range[0], volume_range[-1]+volume_step, volume_step)  # Dx% with x in [0, 100]
+    volumes = np.arange(0., 101., 1.0)  # Dx% with integer x in [0, 100]
     pvalues, significance = analyzer.voxel_wise_Mann_Whitney_test(control_histograms=all_control_dlvhs, 
                                                                   ae_histograms=all_ae_dlvhs,
                                                                   dose_at_volumes=volumes,
@@ -83,7 +78,7 @@ def main():
         maskedvolumes = volumes[significance]
         maskedpvalues = pvalues[significance]
         for volume, pvalue in zip(maskedvolumes, maskedpvalues):
-            print(f"D{volume:.0f}: p-value={pvalue:.4f}") # Statistical difference observed (alpha<0.05)
+            print(f"D{volume:.0f}%: p-value={pvalue:.4f}") # Statistical difference observed (alpha<0.05)
 
     # 5) Plot median DVHs
     _, ax = plt.subplots(1, 1, figsize=(9, 6.5))

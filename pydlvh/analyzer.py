@@ -54,7 +54,6 @@ def dose_at_volume(histo: Histogram1D,
                    volumes: np.ndarray) -> np.ndarray:
     
     """ Interpolate histogram at specified volumes to get dose/let at given volumes. """
-
     doses = np.interp(volumes, histo.edges, histo.values)
 
     return doses
@@ -146,7 +145,6 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
         else:
             x_edges = None
         y_edges = None
-
     elif is_2D:
         x_edges = dose_edges
         y_edges = let_edges
@@ -168,7 +166,7 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
 
     # Compute statistics
     if is_1D and aggregateby == "volume":
-        stack = np.stack([h.centers for h in rebinned_histos], axis=0)
+        stack = np.stack([h.edges for h in rebinned_histos], axis=0)
     else:
         stack = np.stack([h.values for h in rebinned_histos], axis=0)
 
@@ -186,7 +184,7 @@ def aggregate(dlvhs: Union[DLVH, List[DLVH]],
 
     if aggregateby == "volume":
         values = rebinned_histos[0].values
-        edges = _get_bin_edges(centers=aggregate, first_edge=0.0)
+        edges = aggregate
     else:
         values = aggregate
         edges = bin_edges
@@ -275,6 +273,7 @@ def compute_2d_edges(dlvhs: List[DLVH],
 def build_histogram(dlvh,
                     quantity: Literal["dvh", "lvh", "dlvh"],
                     edges: np.ndarray,
+                    centers: np.ndarray,
                     cumulative: bool,
                     normalize: bool,
                     aggregateby: Optional[Literal["volume", "dose", "let"]] = None):
@@ -282,6 +281,7 @@ def build_histogram(dlvh,
     if quantity == "dvh":
         return dlvh.dose_volume_histogram(
             bin_edges=edges,
+            bin_centers=centers,
             cumulative=cumulative,
             normalize=normalize,
             aggregatedby=aggregateby,
@@ -290,6 +290,7 @@ def build_histogram(dlvh,
     if quantity == "lvh":
         return dlvh.let_volume_histogram(
             bin_edges=edges,
+            bin_centers=centers,
             cumulative=cumulative,
             normalize=normalize,
             aggregatedby=aggregateby,
@@ -353,7 +354,7 @@ def get_all_cohort_histograms(
         edges = (dose_edges, let_edges)
 
     rebinned_histos = [
-        build_histogram(dlvh=dlvh, quantity=quantity, edges=edges, aggregateby=aggregateby, cumulative=cumulative, normalize=normalize)
+        build_histogram(dlvh=dlvh, quantity=quantity, edges=edges, centers=centers, aggregateby=aggregateby, cumulative=cumulative, normalize=normalize)
         for dlvh in dlvhs
     ]
 
