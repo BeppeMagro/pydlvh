@@ -459,7 +459,7 @@ def voxel_wise_Wilcoxon_test(control_histograms: List[Union[Histogram1D, Histogr
 
 def get_auc_score(control_histograms: Union[List[Histogram1D], List[Histogram2D]],
                   ae_histograms: Union[List[Histogram1D], List[Histogram2D]],
-                  volume_grid: np.ndarray = np.linspace(0, 100, 101))  -> np.ndarray:
+                  dose_at_volumes: Optional[np.ndarray] = None)  -> Histogram2D:
     
     validate([*control_histograms, *ae_histograms])
 
@@ -470,7 +470,7 @@ def get_auc_score(control_histograms: Union[List[Histogram1D], List[Histogram2D]
                                                                       ae_histograms, 
                                                                       fill_value=0.5,
                                                                       test="AUC score",
-                                                                      volume_grid=volume_grid)
+                                                                      dose_at_volumes=dose_at_volumes)
 
     for idx in np.ndindex(shape):
 
@@ -486,4 +486,11 @@ def get_auc_score(control_histograms: Union[List[Histogram1D], List[Histogram2D]
         else:
             auc_map[idx] = 0.5  # no discrimination
     
-    return auc_map
+    return Histogram2D(values=auc_map,
+                       dose_edges=reference_histogram.dose_edges if histo_type == Histogram2D else None,
+                       let_edges=reference_histogram.let_edges if histo_type == Histogram2D else None,
+                       cumulative=reference_histogram.cumulative if histo_type == Histogram2D else None,
+                       normalize=reference_histogram.normalize if histo_type == Histogram2D else None,
+                       dose_label=reference_histogram.dose_label if histo_type == Histogram2D else None,
+                       let_label=reference_histogram.let_label if histo_type == Histogram2D else None)
+    # return auc_map
