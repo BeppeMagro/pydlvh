@@ -78,10 +78,10 @@ def main():
     median_dlvh.plot(mode="values", isovolumes=[20, 50, 80], ax=ax[0])
     ax[0].set_title("Median DLVH 2D")
     # 25th percentile
-    median_dlvh.plot(mode="p_lo", ax=ax[1])
+    median_dlvh.plot(mode="p_lo", ax=ax[1], isovolumes=[20, 50, 80])
     ax[1].set_title("DLVH 25th percentile (IQR lower)")
     # 75th percentile
-    median_dlvh.plot(mode="p_hi", ax=ax[2])
+    median_dlvh.plot(mode="p_hi", ax=ax[2], isovolumes=[20, 50, 80])
     ax[2].set_title("DLVH 75th percentile (IQR upper)")
     plt.tight_layout()
     plt.show()
