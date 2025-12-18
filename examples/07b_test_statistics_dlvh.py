@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from pydlvh.core import DLVH
 from pydlvh.utils import _get_bin_centers
 import pydlvh.analyzer as analyzer
@@ -73,7 +74,7 @@ def main():
                                                                   alpha=alpha,
                                                                   correction="fdr_bh")
 
-    # Print (top 5 most) significant Dx%
+    # Print (top 5 most) significant Dx% according to Mann-Whitney U-test
     if np.any(significance):
         rows = []
         significant_indices = np.argwhere(significance)
@@ -105,64 +106,40 @@ def main():
     auc_map = analyzer.get_auc_score(control_histograms=all_control_dlvhs,
                                      ae_histograms=all_ae_dlvhs)
     
+    # Print (top 5 most) significant Dx% according to AUC score
+    significance = auc_map.values > 0.8
+    if np.any(significance):
+        rows = []
+        significant_indices = np.argwhere(significance)
+        for i, j in significant_indices:
+            rows.append({
+                "Dose (Gy)": median_control_dlvh.dose_edges[i],
+                "LET (keV/µm)": median_control_dlvh.let_edges[j],
+                "Volume control": median_control_dlvh.values[i, j],
+                "Volume AE": median_ae_dlvh.values[i, j],
+                "AUC score": auc_map.values[i, j],
+            })
+        df = pd.DataFrame(rows)
+        df = df.sort_values("AUC score").head(5)
+        print(f"\nTop 5 most significant AUC scores:\n")
+        print(df.to_markdown(index=False, floatfmt=".4g"))
+    
     # 6) Plot AUC map and visualize signficant voxels
-    _, ax = plt.subplots(figsize=(4, 4))
-    auc_map.plot(ax=ax)
+    _, ax = plt.subplots(figsize=(5, 4))
+    auc_map.plot(ax=ax, auc_map=True)
+    mask8 = (auc_map.values > 0.8)
+    dose_centers = _get_bin_centers(edges=auc_map.dose_edges)
+    let_centers = _get_bin_centers(edges=auc_map.let_edges)
+    ax.contour(
+        dose_centers, let_centers, mask8.T,
+        levels=[0.5], colors="darkred", linewidths=2
+    )
+    ax.set_title("Voxel-wise AUC (Control vs AE)")
+    legend_elements = [Line2D([0], [0], marker='', linestyle='-', 
+                              markerfacecolor="darkred", linewidth=2,
+                              label=" AUC > 0.8")]
+    ax.legend(handles=legend_elements, loc="lower left", frameon=False, handletextpad=0.14)
     plt.show()
-    """fig, axes = plt.subplots(1, 2, figsize=(9, 4))
-
-    for idx, auc_map in enumerate([auc_map_LEM, auc_map_MKM]):
-
-        ax = axes[idx]
-        mask70 = (auc_map > 0.7)
-        mask72 = (auc_map > 0.719)
-
-        # Show AUC map with real dose/LET axes
-        cax = ax.imshow(
-            auc_map.T,
-            origin="lower",
-            cmap=cmap,
-            vmin=0.5, vmax=0.7,
-            extent=[dose_edges[0], dose_edges[-1], let_edges[0], let_edges[-1]],
-            aspect="auto"
-        )
-
-        # Overlay contour of significant voxels
-        dose_centers = 0.5 * (dose_edges[:-1] + dose_edges[1:])
-        let_centers = 0.5 * (let_edges[:-1] + let_edges[1:])
-        ax.contour(
-            dose_centers, let_centers, mask70.T,
-            levels=[0.5], colors="darkblue", linewidths=2
-        )
-        ax.contour(
-            dose_centers, let_centers, mask72.T,
-            levels=[0.5], colors="darkred", linewidths=2
-        )
-        true_indices = np.argwhere(mask72)
-        print(f"\n--- Points where AUC>0.7 (dose, LET) - {models[idx]} ---")
-        print("(Dose, LETd, Volume(median control), Volume(median AE), AUC)")
-        for (i, j) in true_indices:
-            x = dose_centers[i]
-            y = let_centers[j]
-            z = medianControlDLVHs[idx].values[i, j]
-            z_ae = medianAEDLVHs[idx].values[i, j]
-            auc = auc_map[i, j]
-            print(f"({x:.2f}, {y:.2f}, {z:.2f}, {z_ae:.2f}, {auc:.5f})")
-            # print(f"({x}, {y}, {z:.2f}, {auc:.2f})")
-
-        # Add colorbar
-        cbar = fig.colorbar(cax, ax=ax)
-        cbar.set_label("AUC")
-
-        # Labels and title
-        ax.set_xlabel("Dose [GyRBE]")
-        ax.set_ylabel(r"LET$_d$ [keV/µm]")
-        ax.set_title("Voxel-wise AUC (Control vs AE)")
-        ax.set_xlim(0, 75)
-        ax.set_ylim(0, 80)
-
-    plt.tight_layout()
-    plt.show()"""
 
 if __name__ == "__main__":
     main()

@@ -167,7 +167,7 @@ class Histogram2D:
              isovolumes: Optional[List[float]] = None,
              isovolumes_colors: Optional[Union[str, List[str]]] = None,
              interactive: bool = False, title: bool = False,
-             **kwargs):
+             auc_map: bool = False, **kwargs):
         """
         Plot the 2D histogram or auxiliary maps, with optional (interactive) isovolumes.
         Matching the viewer.plot2D layout and slider behavior.
@@ -245,8 +245,10 @@ class Histogram2D:
             ax.set_ylim(bottom=0)
 
         if colorbar:
+            cbar_label = "Volume [%]" if self.normalize else "Volume [cm³]"
+            if auc_map: cbar_label = "AUC"
             cbar = plt.colorbar(mesh, ax=ax,
-                         label="Volume [%]" if self.normalize else "Volume [cm³]",
+                         label=cbar_label,
                          aspect=10)
             cbar.ax.tick_params(size=0)
 
