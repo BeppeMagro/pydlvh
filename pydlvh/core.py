@@ -3,8 +3,9 @@ from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
+from matplotlib.colors import ListedColormap
 from typing import Tuple, List, Literal, Optional, Union
-from .utils import _auto_bins, _suffix_cumsum2d
+from .utils import _auto_bins, _suffix_cumsum2d, _get_bin_edges, _get_bin_centers
 
 
 class Histogram1D:
@@ -13,12 +14,15 @@ class Histogram1D:
     def __init__(self, *, values: np.ndarray, edges: np.ndarray,
                  quantity: str, normalize: bool, cumulative: bool,
                  x_label: Optional[str] = None, y_unit: Optional[str] = None,
+                 centers: Optional[np.ndarray] = None,
                  err: Optional[np.ndarray] = None,
                  p_lo: Optional[np.ndarray] = None,
                  p_hi: Optional[np.ndarray] = None,
-                 stat: Optional[str] = None):
+                 stat: Optional[str] = None,
+                 aggregatedby: Optional[str] = None):
         self.values = np.asarray(values, dtype=float)
         self.edges = np.asarray(edges, dtype=float)
+        self.centers = np.asarray(centers, dtype=float)
         self.quantity = str(quantity)
         self.normalize = bool(normalize)
         self.cumulative = bool(cumulative)
@@ -30,23 +34,38 @@ class Histogram1D:
         self.p_lo = None if p_lo is None else np.asarray(p_lo, dtype=float)
         self.p_hi = None if p_hi is None else np.asarray(p_hi, dtype=float)
         self.stat = stat if stat else None
+        self.aggregated = False if stat else True # Aggregation is deduced from stat declaration
+        self.aggregatedby = aggregatedby
 
-    def get_data(self, *, x: Literal["edges", "centers"] = "edges") -> Tuple[np.ndarray, np.ndarray]:
+    def _get_data(self) -> Tuple[np.ndarray, np.ndarray]:
         """Return x-axis coordinates and histogram values."""
         edges = self.edges.copy()
         values = self.values.copy()
 
-        if x == "centers":
-            return 0.5 * (edges[:-1] + edges[1:]), values
-
-        if self.cumulative and edges[0] > 0:
+        # Padding
+        if edges[0] > 0 and self.cumulative:
             edges = np.insert(edges, 0, 0.0)
+            values = np.insert(values, 0, values[0])
+
+        if not self.cumulative: # For differential DVH, set the last value to zero for visualization purposes
             values = np.insert(values, 0, values[0])
 
         return edges, values
     
+    def _get_error(self, *, error: np.ndarray,
+                   values: np.ndarray) -> Optional[np.ndarray]:
+        if error is None:
+            return None
+        
+        error = np.asarray(error, dtype=float)
+
+        if error.shape == values.shape:
+            return error
+        
+        return np.append(error, 0.0)
+
     def plot(self, *, ax: Optional[plt.Axes] = None,
-             show_band: bool = True, **kwargs):
+             show_band: bool = True, band_color: str = None, **kwargs):
         """
         Plot the histogram (cumulative curve or differential bar chart).
     
@@ -55,52 +74,46 @@ class Histogram1D:
         show_band : bool, default=True
             If True, draw shaded uncertainty/percentile bands if available.
         """
-        edges, values = self.get_data(x="edges")
         if ax is None:
             _, ax = plt.subplots()
     
         # Plot Histogram1D (accounting for eventual padding)
-        if self.cumulative:
-            ax.step(edges[:-1], values, where="post", **kwargs)
-            x_band = edges[:-1]
-            step_kw = "post"
-        else:
-            centers = 0.5 * (edges[:-1] + edges[1:])
-            widths = np.diff(edges)
-            ax.bar(centers, values, width=widths, align="center", **kwargs)
-            x_band = centers
-            step_kw = None
+        edges, values = self._get_data()
+
+        ax.step(edges, values, where="post", **kwargs)
+        x_band = edges
+        step_kw = "post"
     
         # Plot uncertainty range
         if show_band:
-            n = len(values)
-    
-            def _fix_len(arr: Optional[np.ndarray]) -> Optional[np.ndarray]:
-                if arr is None:
-                    return None
-                arr = np.asarray(arr, dtype=float)
-                if arr.shape[0] == n:
-                    return arr
-                if self.cumulative and arr.shape[0] == n - 1:
-                    return np.insert(arr, 0, arr[0])
-                return None
-    
+            if not band_color:
+                band_color = "gray"
+
             # std band
             if self.err is not None:
-                err = _fix_len(self.err)
-                if err is not None:
-                    y_lo = values - err
-                    y_hi = values + err
-                    ax.fill_between(x_band, y_lo, y_hi,
-                                    step=step_kw, alpha=0.1, color="gray", label="±std")
+                err = self._get_error(error=self.err, values=values)
+                if self.aggregatedby == "volume":
+                    x_lo = edges - err
+                    x_hi = edges + err
+                    ax.fill_betweenx(values, x_lo, x_hi,
+                                     alpha=0.2, color=band_color, step=step_kw)
+                else:
+                    if err is not None:
+                        y_lo = values - err
+                        y_hi = values + err
+                        ax.fill_between(x_band, y_lo, y_hi,
+                                        step=step_kw, alpha=0.2, color=band_color)
     
             # percentile band
             if self.p_lo is not None and self.p_hi is not None:
-                plo = _fix_len(self.p_lo)
-                phi = _fix_len(self.p_hi)
-                if plo is not None and phi is not None:
+                plo = self._get_error(error=self.p_lo, values=values)
+                phi = self._get_error(error=self.p_hi, values=values)
+                if self.aggregatedby == "volume":
+                    ax.fill_betweenx(values, plo, phi,
+                                     alpha=0.2, color=band_color, step=step_kw)
+                else:
                     ax.fill_between(x_band, plo, phi,
-                                    step=step_kw, alpha=0.1, color="gray", label="IQR")
+                                    step=step_kw, alpha=0.2, color=band_color)
     
         # Labels
         if self.x_label:
@@ -108,7 +121,7 @@ class Histogram1D:
         elif self.quantity == "dose":
             ax.set_xlabel("Dose [Gy(RBE)]")
         elif self.quantity == "let":
-            ax.set_xlabe(r"LET$_{d}$ [keV/µm]")
+            ax.set_xlabel(r"LET$_{d}$ [keV/µm]")
     
         if self.normalize:
             # ax.set_ylabel(f"{'Cumulative' if self.cumulative else 'Differential'} Volume [%]")
@@ -146,15 +159,15 @@ class Histogram2D:
         self.p_lo = None if p_lo is None else np.asarray(p_lo, dtype=float)
         self.p_hi = None if p_hi is None else np.asarray(p_hi, dtype=float)
         self.stat = stat if stat else None
-        self.aggregated = False if err is None or p_lo is None else True
+        self.aggregated = False if stat else True # Aggregation is deduced from stat declaration
    
     def plot(self, *, ax: Optional[plt.Axes] = None,
-             cmap: str = "viridis", colorbar: bool = True,
+             cmap: str = None, colorbar: bool = True,
              mode: Literal["values", "err", "p_lo", "p_hi"] = "values",
              isovolumes: Optional[List[float]] = None,
              isovolumes_colors: Optional[Union[str, List[str]]] = None,
              interactive: bool = False, title: bool = False,
-             **kwargs):
+             auc_map: bool = False, **kwargs):
         """
         Plot the 2D histogram or auxiliary maps, with optional (interactive) isovolumes.
         Matching the viewer.plot2D layout and slider behavior.
@@ -173,7 +186,7 @@ class Histogram2D:
             If True, show an interactive slider to add a single isovolume contour.
         """
 
-        # --- Ensure visual padding to 0 for cumulative maps ---
+        # Ensure visual padding to 0 for cumulative maps 
         if self.cumulative:
             if self.dose_edges[0] > 0:
                 self.dose_edges = np.insert(self.dose_edges, 0, 0.0)
@@ -192,7 +205,7 @@ class Histogram2D:
                     self.p_lo = np.insert(self.p_lo, 0, self.p_lo[:, 0], axis=1)
                     self.p_hi = np.insert(self.p_hi, 0, self.p_hi[:, 0], axis=1)
 
-        # --- Select data to plot ---
+        # Select data to plot 
         if mode == "values":
             data = self.values.T
         elif mode == "err" and self.err is not None:
@@ -204,14 +217,20 @@ class Histogram2D:
         else:
             raise ValueError(f"No data available for mode='{mode}'.")
 
-        # --- Setup figure/axes with viewer-style spacing ---
+        # Define custom colormap if not provided
+        if not cmap:
+            import seaborn as sns
+            sns_cmap = sns.color_palette("Spectral", as_cmap=True)
+            colors = [sns_cmap(i) for i in np.linspace(0.5, 1, 20)]
+            cmap = ListedColormap(colors)
+
+        # Setup figure
         if ax is None:
             fig, ax = plt.subplots(figsize=(7, 7), constrained_layout=False)
         else:
             fig = ax.figure
         fig.subplots_adjust(bottom=0.6 if interactive else 0.12)
 
-        # --- Heatmap ---
         mesh = ax.pcolormesh(self.dose_edges,
                              self.let_edges,
                              data,
@@ -226,12 +245,14 @@ class Histogram2D:
             ax.set_ylim(bottom=0)
 
         if colorbar:
+            cbar_label = "Volume [%]" if self.normalize else "Volume [cm³]"
+            if auc_map: cbar_label = "AUC"
             cbar = plt.colorbar(mesh, ax=ax,
-                         label="Volume [%]" if self.normalize else "Volume [cm³]",
+                         label=cbar_label,
                          aspect=10)
             cbar.ax.tick_params(size=0)
 
-        # --- Helper: estimate total volume (needed if normalize=False) ---
+        # Helper: estimate total volume (needed if normalize=False) 
         def _total_volume(arr: np.ndarray) -> float:
             if self.cumulative:
                 return float(arr[0, 0]) if arr.size > 0 else 0.0
@@ -239,7 +260,7 @@ class Histogram2D:
 
         total_abs = _total_volume(self.values.T if mode == "values" else data)
 
-        # --- Draw static isovolumes ---
+        #  Draw static isovolumes
         if isovolumes:
             if self.normalize:
                 levels_abs = list(isovolumes)  # already in %
@@ -249,12 +270,12 @@ class Histogram2D:
                             self.let_edges[:-1],
                             data,
                             levels=levels_abs,
-                            colors=isovolumes_colors if isovolumes_colors else "white",
-                            linewidths=2)
+                            colors=isovolumes_colors if isovolumes_colors else "black",
+                            linewidths=1)
             fmt = (lambda v: f"{v:g}%") if self.normalize else (lambda v: f"{v:.2f}cm³")
             ax.clabel(CS, inline=True, fontsize=10, fmt=fmt)
 
-        # --- Interactive slider ---
+        # Interactive slider for isovolume
         if interactive:
             # keep references on self to avoid GC
             self._fig2d = fig
@@ -275,8 +296,7 @@ class Histogram2D:
             def _update(val):
                 # clear previous contour
                 if self._interactive_contour is not None:
-                    for coll in self._interactive_contour.collections:
-                        coll.remove()
+                    self._interactive_contour.remove()
                     self._interactive_contour = None
                 for lbl in self._interactive_labels:
                     try:
@@ -300,13 +320,13 @@ class Histogram2D:
                     self.let_edges[:-1],
                     self._data2d,
                     levels=[level_abs],
-                    colors="red",
+                    colors="darkred",
                     linewidths=1.5
                 )
                 self._interactive_labels = self._ax2d.clabel(
                     self._interactive_contour,
                     inline=True,
-                    fontsize=8,
+                    fontsize=10,
                     fmt=lambda _: f"{level_pct:.0f}%"
                 )
                 self._fig2d.canvas.draw_idle()
@@ -316,40 +336,40 @@ class Histogram2D:
         if not ax: plt.show()
         return ax
 
-
-    def get_marginals(self, *, kind: Literal["dose", "let"] = "dose") -> Tuple[np.ndarray, np.ndarray]:
+    def get_marginals(self, *, quantity: Literal["dose", "let"] = "dose") -> Tuple[np.ndarray, np.ndarray]:
         """Return the marginal histogram as (edges, values). Only for cumulative 2D."""
         if not self.cumulative:
             raise NotImplementedError("Marginal extraction is only implemented for cumulative 2D histograms.")
 
-        if kind == "dose":
+        if quantity == "dose":
             edges = self.dose_edges.copy()
             values = self.values[:, 0].copy()
-        elif kind == "let":
+        elif quantity == "let":
             edges = self.let_edges.copy()
             values = self.values[0, :].copy()
         else:
-            raise ValueError("Argument 'kind' must be either 'dose' or 'let'.")
+            raise ValueError("Argument 'quantity' must be either 'dose' or 'let'.")
 
-        if edges[0] > 0:
-            edges = np.insert(edges, 0, 0.0)
-            values = np.insert(values, 0, values[0])
+        # Append 0.0 at the end for proper step plotting
+        values = np.append(values, 0.0)
 
         return edges, values
 
-    def plot_marginals(self, *, kind: Literal["dose", "let"] = "dose"):
+    def plot_marginals(self, *, ax: Optional[plt.Axes] = None,
+                       quantity: Literal["dose", "let"] = "dose", **kwargs):
         """Plot DVH or LVH derived from the cumulative 2D histogram."""
-        edges, values = self.get_marginals(kind=kind)
-        fig, ax = plt.subplots(figsize=(6, 5))
+        edges, values = self.get_marginals(quantity=quantity)
 
-        if kind == "dose":
-            ax.step(edges[:-1], values, where="post", color="C0", label="DVH")
+        if ax is None:
+            _, ax = plt.subplots()
+
+        if quantity == "dose":
             ax.set_xlabel(self.dose_label)
             ax.set_title("DVH from 2D cumulative")
         else:
-            ax.step(edges[:-1], values, where="post", color="C1", label="LVH")
             ax.set_xlabel(self.let_label)
             ax.set_title("LVH from 2D cumulative")
+        ax.step(edges, values, where="post", **kwargs)
 
         ax.set_ylabel("Volume [%]" if self.normalize else "Volume [cm³]")
         ax.set_xlim(left=0)
@@ -372,11 +392,12 @@ class DLVH:
                  dose: Optional[np.ndarray] = None,
                  let: Optional[np.ndarray] = None,
                  volume_cc: float,
+                 volume_fraction: float = 100.,
                  relative_volumes: Optional[np.ndarray] = None,
                  dose_units: str = "Gy",
                  let_units: str = "keV/µm"):
         if dose is None and let is None:
-            raise ValueError("At least one of dose or let must be provided.")
+            raise ValueError("At least one between dose or let must be provided.")
 
         self.dose = self._validate_array(dose, "dose") if dose is not None else None
         self.let = self._validate_array(let, "let") if let is not None else None
@@ -407,6 +428,7 @@ class DLVH:
         self.n_voxels = size
         self.dose_units = dose_units
         self.let_units = let_units
+        self.volume_fraction = volume_fraction
 
     @staticmethod
     def _validate_array(arr: Optional[np.ndarray], label: str) -> np.ndarray:
@@ -417,72 +439,181 @@ class DLVH:
             raise ValueError(f"{label} array must contain non-negative finite values.")
         return arr
 
+    def _dose_at_volume(self, *, data: np.ndarray,
+                        weights: np.ndarray,
+                        volume_cc: float,
+                        volume_grid: np.ndarray,
+                        normalize: Optional[bool])->Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        
+        # Sort data and weights according to data order
+        sorted_indices = np.argsort(data)
+        sorted_data = data[sorted_indices]
+        sorted_weights = weights[sorted_indices]
+
+        # Compute cumulative volume
+        cumulative_volume = np.cumsum(sorted_weights[::-1])[::-1]
+        # Normalization
+        if normalize:
+            cumulative_volume = (cumulative_volume / volume_cc) * 100.0
+
+        # Invert DVH: compute D = f(V)
+        dose_grid = np.interp(volume_grid, cumulative_volume[::-1], sorted_data[::-1])
+
+        edges = dose_grid[::-1]
+        values = np.max(volume_grid) - volume_grid
+        centers = _get_bin_centers(edges=edges)
+        
+        return centers, values, edges
+    
     def _volume_histogram(self, *, data: np.ndarray, weights: np.ndarray,
                           quantity: str,
-                          bin_width: Optional[float] = None,
+                          bin_centers: Optional[np.ndarray] = None,
                           bin_edges: Optional[np.ndarray] = None,
+                          bin_width: Optional[float] = None,
                           normalize: bool = True,
-                          cumulative: bool = True) -> Histogram1D:
-        if bin_edges is not None:
-            edges = np.asarray(bin_edges, dtype=float)
-        elif bin_width is None:
-            edges = _auto_bins(arr=data)
-        else:
-            xmax = float(np.max(data))
-            n_bins = int(np.ceil(xmax / bin_width)) if bin_width > 0 else 1
-            edges = np.linspace(0.0, n_bins * bin_width, n_bins + 1)
+                          cumulative: bool = True,
+                          aggregatedby: str = None) -> Histogram1D:
+        
+        if aggregatedby not in [None, "dose", "volume", "let"]:
+            raise ValueError("Unsupported aggregateby. Choose 'dose', 'let' or 'volume'.")
+        if aggregatedby == "volume" and not cumulative:
+            raise ValueError(f"Unsupported sampling ({aggregatedby}) for differential DVH.")
+        volume_binning = aggregatedby == "volume" or (aggregatedby == None and cumulative)
+        data_binning = aggregatedby == "dose" or aggregatedby == "let" or (aggregatedby == None and not cumulative)
+        if bin_centers is not None and len(bin_centers) < 2:
+                raise ValueError("At least two data_bin_centers elements are required to compute a volume histogram.")
+        
+        # Dose/let binning
+        if data_binning:
+            # Bin centers provided for dose/let
+            if bin_centers is not None:
+                # Get dose/let edges
+                centers = bin_centers
+                edges = _get_bin_edges(centers=bin_centers)
 
-        vols, _ = np.histogram(data, bins=edges, weights=weights)
-        if cumulative:
-            vols = np.cumsum(vols[::-1])[::-1]
+            # Bin width provided for dose/let  
+            elif bin_width is not None:
+                xmax = float(np.max(data))
+                n_bins = int(np.ceil(xmax / bin_width)) if bin_width > 0 else 1
+                edges = np.linspace(0.0, n_bins * bin_width, n_bins + 1)
+                centers = _get_bin_centers(edges=edges)
 
-        values = vols.astype(float)
-        if normalize:
-            values = (values / self.volume_cc) * 100.0
+            # Bin edges provided for dose/let  
+            elif bin_edges is not None:
+                edges = bin_edges
+                centers = _get_bin_centers(edges=bin_edges)
 
-        xlab = f"Dose [{self.dose_units}]" if quantity == "dose" else f"LET [{self.let_units}]"
-        return Histogram1D(values=values, edges=edges,
+            else: # default binning: dose/let binning
+                edges = _auto_bins(array=data)
+                centers = _get_bin_centers(edges=edges)
+            # Compute corresponding volumes
+            volumes, _ = np.histogram(data, bins=edges, weights=weights)
+
+            # Cumulative distribution
+            if cumulative:
+                volumes = np.cumsum(volumes[::-1])[::-1]
+                volumes = np.append(volumes, 0.0) # Append last zero bin
+            # Normalization
+            if normalize:
+                volumes = (volumes / self.volume_cc) * 100.0
+            values = volumes.astype(float)
+
+        # Volume binning
+        elif volume_binning:
+
+            if not cumulative:
+                raise ValueError("Volume binning is only supported for cumulative histograms.")
+
+            # Bin centers provided for volume
+            if bin_centers is not None:
+                centers, values, edges = self._dose_at_volume(data=data,
+                                                              weights=weights,
+                                                              volume_cc=self.volume_cc,
+                                                              volume_grid=bin_centers,
+                                                              normalize=normalize)
+
+            # Bin width provided for volume
+            elif bin_width is not None:
+                vol_max = 100.0 if normalize else self.volume_cc
+                n_bins = int(np.ceil(vol_max / bin_width)) if bin_width > 0 else 1
+                volume_edges = np.linspace(0.0, (1+n_bins) * bin_width, n_bins + 1)
+                volume_centers = (volume_edges[:-1] + volume_edges[1:]) / 2.0
+                centers, values, edges = self._dose_at_volume(data=data,
+                                                              weights=weights,
+                                                              volume_cc=self.volume_cc,
+                                                              volume_grid=volume_centers,
+                                                              normalize=normalize)
+
+            # Bin edges provided for volume
+            elif bin_edges is not None:
+                raise ValueError("Volume binning providing bin edges is not available.")
+
+            # default binning + cumulative: volume binning
+            else:
+                center_step = 0.01 if normalize else 0.01 # 0.01% or 0.01 cc step
+                max_center = 100 * self.volume_fraction if normalize else self.volume_cc * self.volume_fraction
+                max_volume = max_center + center_step/2
+                volume_centers = np.arange(0, max_volume, center_step) if normalize else np.arange(0, max_volume, center_step) 
+                centers, values, edges = self._dose_at_volume(data=data,
+                                                              weights=weights,
+                                                              volume_cc=self.volume_cc,
+                                                              volume_grid=volume_centers,
+                                                              normalize=normalize)
+
+        x_label = f"Dose [{self.dose_units}]" if quantity == "dose" else f"LET [{self.let_units}]"
+        return Histogram1D(values=values, edges=edges, centers=centers,
                            quantity=quantity, normalize=normalize,
-                           cumulative=cumulative, x_label=xlab)
+                           cumulative=cumulative, x_label=x_label, aggregatedby=aggregatedby)
 
     def dose_volume_histogram(self, *, bin_width: Optional[float] = None,
+                              bin_centers: Optional[np.ndarray] = None,
                               bin_edges: Optional[np.ndarray] = None,
                               normalize: bool = True,
                               cumulative: bool = True,
-                              let_threshold: float = 0.0) -> Histogram1D:
+                              let_threshold: float = 0.0,
+                              aggregatedby: str = None) -> Histogram1D:
         if self.dose is None:
-            raise RuntimeError("Dose array not available for DVH.")
+            raise ValueError("Dose array not available for DVH.")
         if let_threshold > 0 and self.let is None:
-            raise RuntimeError("LET array required to apply let_threshold.")
+            raise ValueError("LET array required to apply let_threshold.")
+        if aggregatedby not in [None, "dose", "volume"]:
+            raise ValueError("Unsupported aggregateby. Choose 'dose' or 'volume'.")
 
         mask = np.ones_like(self.dose, dtype=bool) if self.let is None else self.let >= let_threshold
         data = self.dose[mask]
         weights = (self.relw * self.volume_cc)[mask]
+        self.volume_fraction = np.sum(self.relw[mask])
 
         return self._volume_histogram(data=data, weights=weights, quantity="dose",
-                                      bin_width=bin_width, bin_edges=bin_edges,
-                                      normalize=normalize, cumulative=cumulative)
+                                      bin_width=bin_width, bin_centers=bin_centers, 
+                                      bin_edges=bin_edges, normalize=normalize, 
+                                      cumulative=cumulative, aggregatedby=aggregatedby)
 
     def let_volume_histogram(self, *, bin_width: Optional[float] = None,
+                             bin_centers: Optional[np.ndarray] = None,
                              bin_edges: Optional[np.ndarray] = None,
                              normalize: bool = True,
                              cumulative: bool = True,
-                             dose_threshold: float = 0.0) -> Histogram1D:
+                             dose_threshold: float = 0.0,
+                             aggregatedby: str = None) -> Histogram1D:
         if self.let is None:
             raise RuntimeError("LET array not available for LVH.")
         if dose_threshold > 0 and self.dose is None:
             raise RuntimeError("Dose array required to apply dose_threshold.")
+        if aggregatedby not in [None, "let", "volume"]:
+            raise ValueError("Unsupported aggregateby. Choose 'let' or 'volume'.")
 
         mask = np.ones_like(self.let, dtype=bool) if self.dose is None else self.dose >= dose_threshold
         data = self.let[mask]
         weights = (self.relw * self.volume_cc)[mask]
+        self.volume_fraction = np.sum(self.relw[mask])
 
         return self._volume_histogram(data=data, weights=weights, quantity="let",
-                                      bin_width=bin_width, bin_edges=bin_edges,
-                                      normalize=normalize, cumulative=cumulative)
+                                      bin_width=bin_width, bin_centers=bin_centers, 
+                                      bin_edges=bin_edges, normalize=normalize, 
+                                      cumulative=cumulative, aggregatedby=aggregatedby)
 
-    def dose_let_volume_histogram(self, *,
-                                  bin_width_dose: Optional[float] = None,
+    def dose_let_volume_histogram(self, *, bin_width_dose: Optional[float] = None,
                                   bin_width_let: Optional[float] = None,
                                   dose_edges: Optional[np.ndarray] = None,
                                   let_edges: Optional[np.ndarray] = None,

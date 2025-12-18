@@ -1,7 +1,7 @@
 """
 01_basic_usage.py
 =================
-Minimal usage of DLVH: explore DVH and LVH variations
+Basic usage of DLVH: explore DVH and LVH contruction
 (cumulative vs differential, normalized vs absolute).
 """
 
@@ -24,13 +24,15 @@ def main():
 
     dlvh = DLVH(dose=dose, let=let, volume_cc=volume_cc)
 
-    # 1) Build DVHs
+    # 1) Build DVHs (defualt binning)
+    # For cumulative DVH, volume parsing is used by default (this allows easier Dx% extraction): aggregatedby="volume"
+    # For differential DVH, dose parsing is used by default: aggregatedby="dose"/"let"
     dvh_cum_norm  = dlvh.dose_volume_histogram(cumulative=True,  normalize=True)
     dvh_cum_abs   = dlvh.dose_volume_histogram(cumulative=True,  normalize=False)
     dvh_diff_norm = dlvh.dose_volume_histogram(cumulative=False, normalize=True)
     dvh_diff_abs  = dlvh.dose_volume_histogram(cumulative=False, normalize=False)
 
-    # 2) Build LVHs
+    # 2) Build LVHs (defualt binning)
     lvh_cum_norm  = dlvh.let_volume_histogram(cumulative=True,  normalize=True)
     lvh_cum_abs   = dlvh.let_volume_histogram(cumulative=True,  normalize=False)
     lvh_diff_norm = dlvh.let_volume_histogram(cumulative=False, normalize=True)
@@ -40,30 +42,29 @@ def main():
     fig, axes = plt.subplots(2, 2, figsize=(8, 6), sharex=True)
     dvh_cum_norm.plot(ax=axes[0, 0], color="C0", label="Cumulative, Norm [%]")
     dvh_cum_abs.plot(ax=axes[0, 1], color="C1", label="Cumulative, Abs [cm³]")
-    dvh_diff_norm.plot(ax=axes[1, 0], color="C0", alpha=0.7, label="Differential, Norm [∑=1]")
-    dvh_diff_abs.plot(ax=axes[1, 1], color="C1", alpha=0.7, label="Differential, Abs [cm³]")
+    dvh_diff_norm.plot(ax=axes[1, 0], color="C0", label="Differential, Norm [%]")
+    dvh_diff_abs.plot(ax=axes[1, 1], color="C1", label="Differential, Abs [cm³]")
 
     for ax in axes.flat:
-        ax.legend(loc="best")
+        ax.legend(loc="best", frameon=False)
         ax.grid(True, alpha=0.2)
     fig.suptitle("DVH")
     plt.tight_layout()
     plt.show()
 
-    # 3) Plot DVHs
+    # 4) Plot LVHs
     fig, axes = plt.subplots(2, 2, figsize=(8, 6), sharex=True)
-    lvh_cum_norm.plot(ax=axes[0, 0], color="C0", label="Cumulative, Norm [%]")
-    lvh_cum_abs.plot(ax=axes[0, 1], color="C1", label="Cumulative, Abs [cm³]")
-    lvh_diff_norm.plot(ax=axes[1, 0], color="C0", alpha=0.7, label="Differential, Norm [∑=1]")
-    lvh_diff_abs.plot(ax=axes[1, 1], color="C1", alpha=0.7, label="Differential, Abs [cm³]")
+    lvh_cum_norm.plot(ax=axes[0, 0], color="C2", label="Cumulative, Norm [%]")
+    lvh_cum_abs.plot(ax=axes[0, 1], color="C3", label="Cumulative, Abs [cm³]")
+    lvh_diff_norm.plot(ax=axes[1, 0], color="C2", label="Differential, Norm [%]")
+    lvh_diff_abs.plot(ax=axes[1, 1], color="C3", label="Differential, Abs [cm³]")
 
     for ax in axes.flat:
-        ax.legend(loc="best")
+        ax.legend(loc="best", frameon=False)
         ax.grid(True, alpha=0.2)
     fig.suptitle("LVH")
     plt.tight_layout()
     plt.show()
-
 
 if __name__ == "__main__":
     main()

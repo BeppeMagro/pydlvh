@@ -1,11 +1,7 @@
 """
 04_dlvh_2d.py
 =============
-Example usage of the 2D Dose–LET Volume Histogram (DLVH).
-
-- Generate synthetic Gaussian dose and LET values.
-- Build a cumulative DLVH (V(D ≥ d, LET ≥ l)).
-- Plot the 2D histogram as a heatmap.
+Basic usage of the 2D Dose–LET Volume Histogram (DLVH).
 """
 
 import os, sys
@@ -17,32 +13,28 @@ from pydlvh.core import DLVH
 
 
 def main():
-    # --- synthetic data ---
+    # Synthetic dose and let distributions (Gaussian)
     n_voxels = 20000
     volume_cc = 10.0
-
-    dose = np.random.normal(loc=50.0, scale=8.0, size=n_voxels)  # Gy
+    dose = np.random.normal(loc=50.0, scale=8.0, size=n_voxels)
     dose = np.clip(dose, 0, None)
-
-    let = np.random.normal(loc=2.5, scale=0.5, size=n_voxels)    # keV/µm
+    let = np.random.normal(loc=2.5, scale=0.5, size=n_voxels)
     let = np.clip(let, 0, None)
 
-    # --- create DLVH object ---
     dlvh = DLVH(dose=dose, let=let, volume_cc=volume_cc)
 
-    # --- build 2D histogram ---
+    # 1) Build DLVH
     h2d = dlvh.dose_let_volume_histogram(
         bin_width_dose=1.0,
         bin_width_let=0.1,
-        normalize=True,       # show as %
-        cumulative=True       # default = cumulative DLVH
+        normalize=True,
+        cumulative=True
     )
 
-    # --- plot ---
-    fig, ax = plt.subplots(figsize=(7, 6))
-    h2d.plot(ax=ax, cmap="plasma", isovolumes=[5, 10, 20], interactive=True)
-    
-
+    # 2) Plot DLVH (with interactive isovolume slider)
+    fig, ax = plt.subplots()
+    isovolumes_colors = [ "#21918c", "#DF0E6F", "#fde725"]
+    h2d.plot(ax=ax, isovolumes=[20, 50, 80], isovolumes_colors=isovolumes_colors, interactive=True)
     # ax.set_title("Cumulative Dose–LET Volume Histogram (DLVH)")
     plt.tight_layout()
     plt.show()
