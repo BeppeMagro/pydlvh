@@ -67,7 +67,7 @@ def main():
                                                       let_edges=let_edges)
 
     # 3) Compute statistical significance between control and AE DLVHs (Mann-Whitney u-test)
-    """alpha = 0.05
+    alpha = 0.05
     print("\nComputing voxel-based Mann-Whitney test...")
     pvalues, significance = analyzer.voxel_wise_Mann_Whitney_test(control_histograms=all_control_dlvhs, 
                                                                   ae_histograms=all_ae_dlvhs,
@@ -89,7 +89,7 @@ def main():
         df = pd.DataFrame(rows)
         df = df.sort_values("p-value").head(5)
         print(f"\nTop 5 Mann–Whitney U-test most significant Dx% (α={alpha}, BH corrected):\n")
-        print(df.to_markdown(index=False, floatfmt=".4g"))"""
+        print(df.to_markdown(index=False, floatfmt=".4g"))
 
     # 4) Plot median DLVHs
     _, ax = plt.subplots(1, 2, figsize=(9, 4))
@@ -107,7 +107,8 @@ def main():
                                      ae_histograms=all_ae_dlvhs)
     
     # Print (top 5 most) significant Dx% according to AUC score
-    significance = auc_map.values > 0.8
+    auc_threshold = 0.8
+    significance = auc_map.values > auc_threshold
     if np.any(significance):
         rows = []
         significant_indices = np.argwhere(significance)
@@ -120,23 +121,22 @@ def main():
                 "AUC score": auc_map.values[i, j],
             })
         df = pd.DataFrame(rows)
-        df = df.sort_values("AUC score").head(5)
+        df = df.sort_values("AUC score", ascending=False).head(5)
         print(f"\nTop 5 most significant AUC scores:\n")
         print(df.to_markdown(index=False, floatfmt=".4g"))
     
     # 6) Plot AUC map and visualize signficant voxels
     _, ax = plt.subplots(figsize=(5, 4))
     auc_map.plot(ax=ax, auc_map=True)
-    mask8 = (auc_map.values > 0.8)
     dose_centers = _get_bin_centers(edges=auc_map.dose_edges)
     let_centers = _get_bin_centers(edges=auc_map.let_edges)
     ax.contour(
-        dose_centers, let_centers, mask8.T,
+        dose_centers, let_centers, significance.T,
         levels=[0.5], colors="darkred", linewidths=2
     )
     ax.set_title("Voxel-wise AUC (Control vs AE)")
     legend_elements = [Line2D([0], [0], marker='', linestyle='-', 
-                              markerfacecolor="darkred", linewidth=2,
+                              color="darkred", linewidth=2,
                               label=" AUC > 0.8")]
     ax.legend(handles=legend_elements, loc="lower left", frameon=False, handletextpad=0.14)
     plt.show()

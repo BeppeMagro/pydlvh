@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from typing import Tuple, List, Literal, Optional, Union
 from scipy.stats import mannwhitneyu, wilcoxon
@@ -493,4 +494,3 @@ def get_auc_score(control_histograms: Union[List[Histogram1D], List[Histogram2D]
                        normalize=reference_histogram.normalize if histo_type == Histogram2D else None,
                        dose_label=reference_histogram.dose_label if histo_type == Histogram2D else None,
                        let_label=reference_histogram.let_label if histo_type == Histogram2D else None)
-    # return auc_map
