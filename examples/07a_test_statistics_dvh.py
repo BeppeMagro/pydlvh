@@ -83,6 +83,7 @@ def main():
         df = df.sort_values("p-value").head(5)
         print(f"\nTop 5 Mann–Whitney U-test most significant Dx% (α={alpha}, BH corrected):\n")
         print(df.to_markdown(index=False, floatfmt=".4g"))
+        print("\n")
 
     # 4) Plot median DVHs
     _, ax = plt.subplots(1, 1, figsize=(9, 6.5))
@@ -90,9 +91,16 @@ def main():
     median_ae_dvh.plot(ax=ax, color="C1", label="AE", show_band=True, band_color="C1")
     ax.legend(loc="best", frameon=False)
     ax.grid(alpha=0.2)
+
+    # 5) Print median Dx% values
+    for percentage in [20, 50, 80]:
+        dose_at_volume = analyzer.get_quantity_at_volume(histo=median_control_dvh, volumes=percentage)
+        print(f"Median control D{percentage}%:\n{dose_at_volume: .2f} Gy(RBE)")
+        dose_at_volume = analyzer.get_quantity_at_volume(histo=median_ae_dvh, volumes=percentage)
+        print(f"AE control D{percentage}%:\n{dose_at_volume: .2f} Gy(RBE)")
     plt.show()
 
-    # # 5) Mean DVHs
+    # # 6) Mean DVHs
     # # Set uniform dose binning for aggregation
     # dose_edges = np.arange(0., 70.1, 0.1)  # D in [0, 70] with step 0.1 Gy
     # _, mean_control_dvh = analyzer.aggregate(dlvhs=control_dlvhs,
@@ -106,7 +114,7 @@ def main():
     #                                     aggregateby="dose",
     #                                     dose_edges=dose_edges)
     
-    # # 5) Plot mean DVHs
+    # # 7) Plot mean DVHs
     # _, ax = plt.subplots(1, 1, figsize=(9, 6.5))
     # mean_control_dvh.plot(ax=ax, color="C2", label="Control", show_band=True, band_color="C2")
     # mean_ae_dvh.plot(ax=ax, color="C3", label="AE", show_band=True, band_color="C3")
