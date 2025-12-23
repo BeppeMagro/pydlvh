@@ -51,13 +51,18 @@ def validate(histograms: Union[Histogram1D, Histogram2D, List[Union[Histogram1D,
                     if reference_histogram.aggregatedby != h.aggregatedby:
                         raise ValueError("If aggregated, all 1D histograms must be aggregated by the same modality ('dose', 'let' or 'volume').")
 
-def dose_at_volume(histo: Histogram1D,
-                   volumes: np.ndarray) -> np.ndarray:
+def get_quantity_at_volume(histo: Histogram1D,
+                           volumes: np.ndarray) -> np.ndarray:
     
     """ Interpolate histogram at specified volumes to get dose/let at given volumes. """
-    doses = np.interp(volumes, histo.edges, histo.values)
 
-    return doses
+    quantities = np.interp(
+        volumes,
+        histo.values[::-1],
+        histo.edges[::-1]
+    )
+
+    return quantities
 
 def build_statistics_matrix(control_histograms, ae_histograms,
                             dose_at_volumes: Optional[np.ndarray] = None,
@@ -73,8 +78,8 @@ def build_statistics_matrix(control_histograms, ae_histograms,
         if is_aggregated:
             if dose_at_volumes is not None:
                 # Interpolate histograms at specified dose_at_volumes
-                control_group = np.stack([dose_at_volume(histo=histo, volumes=dose_at_volumes) for histo in control_histograms])
-                ae_group = np.stack([dose_at_volume(histo=histo, volumes=dose_at_volumes) for histo in ae_histograms])
+                control_group = np.stack([get_quantity_at_volume(histo=histo, volumes=dose_at_volumes) for histo in control_histograms])
+                ae_group = np.stack([get_quantity_at_volume(histo=histo, volumes=dose_at_volumes) for histo in ae_histograms])
             elif reference_histogram.aggregatedby == "volume":
                 # Invert histograms and stack
                 control_group = np.stack([histo.edges for histo in control_histograms])
