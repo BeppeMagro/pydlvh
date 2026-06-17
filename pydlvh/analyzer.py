@@ -64,6 +64,19 @@ def get_quantity_at_volume(histo: Histogram1D,
 
     return quantities
 
+def get_volume_at_quantity(histo: Histogram1D,
+                        quantities: np.ndarray) -> np.ndarray:
+
+    """ Interpolate histogram at specified dose/LET values to get volume (%) at given dose/let quantities. """
+
+    volumes = np.interp(
+        quantities,
+        histo.edges,
+        histo.values
+    )
+
+    return volumes
+
 def build_statistics_matrix(control_histograms, ae_histograms,
                             dose_at_volumes: Optional[np.ndarray] = None,
                             fill_value: float = 1.0,
